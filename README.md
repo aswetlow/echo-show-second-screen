@@ -16,7 +16,6 @@ https://github.com/user-attachments/assets/c93661e0-541c-4ed2-a0f9-a2f4e9cc082f
 - **Zero npm dependencies.** Node, ffmpeg, cloudflared and the ASK CLI are all you need.
 - No jailbreak, no sideloading, nothing modified on the Echo.
 
-![Touch: tapping and scrolling on the Echo Show controls Windows](docs/touch.gif)
 
 ## How it works
 
