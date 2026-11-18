@@ -1,0 +1,52 @@
+{
+  "manifest": {
+    "publishingInformation": {
+      "locales": {
+        "de-DE": {
+          "name": "Zweiter Bildschirm",
+          "summary": "Zeigt einen erweiterten Windows-Monitor auf dem Echo Show.",
+          "description": "Spaßprojekt: Der Echo Show wird zum zweiten Monitor für Windows. Nur für den Entwicklungsmodus gedacht.",
+          "examplePhrases": [
+            "Alexa, öffne zweiten Bildschirm"
+          ],
+          "keywords": []
+        },
+        "en-US": {
+          "name": "Second Screen",
+          "summary": "Shows an extended Windows monitor on the Echo Show.",
+          "description": "Fun project: the Echo Show becomes a second monitor for Windows. Meant for development mode only.",
+          "examplePhrases": [
+            "Alexa, open second screen"
+          ],
+          "keywords": []
+        },
+        "en-GB": {
+          "name": "Second Screen",
+          "summary": "Shows an extended Windows monitor on the Echo Show.",
+          "description": "Fun project: the Echo Show becomes a second monitor for Windows. Meant for development mode only.",
+          "examplePhrases": [
+            "Alexa, open second screen"
+          ],
+          "keywords": []
+        }
+      },
+      "isAvailableWorldwide": true,
+      "testingInstructions": "Development mode only.",
+      "category": "ORGANIZERS_AND_ASSISTANTS"
+    },
+    "apis": {
+      "custom": {
+        "endpoint": {
+          "uri": "https://YOUR-TUNNEL.trycloudflare.com/alexa",
+          "sslCertificateType": "Wildcard"
+        },
+        "interfaces": [
+          {
+            "type": "ALEXA_PRESENTATION_HTML"
+          }
+        ]
+      }
+    },
+    "manifestVersion": "1.0"
+  }
+}

@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Echo Second Screen</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #screen { width: 100vw; height: 100vh; object-fit: contain; display: block; }
+  #hint { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+          font: 16px sans-serif; color: #fff; background: rgba(0,0,0,.6);
+          padding: 8px 14px; border-radius: 8px; transition: opacity 1s; }
+</style>
+</head>
+<body>
+<img id="screen" alt="">
+<div id="hint">Tap for fullscreen</div>
+<!-- Keep-awake: invisible, muted looping video. ?keepawake=0 turns it off. -->
+<video id="ka" src="/keepawake.mp4" muted loop playsinline autoplay
+       style="position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none"></video>
+<script>
+// Default: MJPEG stream in an img tag (the browser swaps the frames itself).
+// If the stream fails or ?mode=poll is set, the page polls single frames instead.
+var img = document.getElementById('screen');
+var hint = document.getElementById('hint');
+var params = new URLSearchParams(location.search);
+var mode = params.get('mode') || 'mjpeg';
+var pollTimer = null;
+
+function startMjpeg() {
+  img.onerror = function () { setTimeout(startMjpeg, 1000); };
+  img.src = '/stream.mjpg?t=' + Date.now();
+}
+function startPoll() {
+  var fps = parseInt(params.get('fps') || '8', 10);
+  function next() {
+    var n = new Image();
+    n.onload = function () { img.src = n.src; pollTimer = setTimeout(next, 1000 / fps); };
+    n.onerror = function () { pollTimer = setTimeout(next, 1000); };
+    n.src = '/frame.jpg?t=' + Date.now();
+  }
+  next();
+}
+// Watchdog: reconnect when the MJPEG stream stalls.
+setInterval(function () {
+  if (streamStarted && mode === 'mjpeg' && !img.complete && img.naturalWidth === 0) startMjpeg();
+}, 10000);
+
+// Start the stream only after the page has finished loading: an MJPEG image never "finishes",
+// so starting it early would keep the page's load event pending forever (the Alexa web view may
+// treat that as a failed start).
+var streamStarted = false;
+function startStream() {
+  if (streamStarted) return; streamStarted = true;
+  if (mode === 'poll') startPoll(); else startMjpeg();
+}
+if (document.readyState === 'complete') setTimeout(startStream, 0);
+else window.addEventListener('load', function () { setTimeout(startStream, 0); });
+
+// ---------- Keep awake ----------
+var ka = document.getElementById('ka');
+var keepAwake = params.get('keepawake') !== '0';
+var wakeLock = null;
+function stayAwake() {
+  if (!keepAwake) { ka.pause(); return; }
+  var p = ka.play(); if (p && p.catch) p.catch(function () {});
+  // Screen Wake Lock API: only in secure contexts (HTTPS), usually not on the LAN over HTTP.
+  if ('wakeLock' in navigator && !wakeLock) {
+    navigator.wakeLock.request('screen').then(function (l) {
+      wakeLock = l; l.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () {});
+  }
+}
+stayAwake();
+setInterval(stayAwake, 30000);
+document.addEventListener('visibilitychange', function () { if (!document.hidden) stayAwake(); });
+
+document.body.addEventListener('click', function () {
+  stayAwake();
+  var el = document.documentElement;
+  var req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (req) { try { req.call(el); } catch (e) {} }
+  hint.style.opacity = 0;
+});
+setTimeout(function () { hint.style.opacity = 0; }, 5000);
+</script>
+</body>
+</html>

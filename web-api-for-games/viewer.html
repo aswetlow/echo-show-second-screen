@@ -1,0 +1,227 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Echo Second Screen</title>
+<style>
+  html, body { margin: 0; height: 100%; background: #000; overflow: hidden; }
+  #screen { width: 100vw; height: 100vh; object-fit: contain; display: block;
+            touch-action: none; user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+  #hint { position: fixed; left: 50%; bottom: 16px; transform: translateX(-50%);
+          font: 16px sans-serif; color: #fff; background: rgba(0,0,0,.6);
+          padding: 8px 14px; border-radius: 8px; transition: opacity 1s; }
+</style>
+</head>
+<body>
+<img id="screen" alt="">
+<div id="hint">Tap for fullscreen</div>
+<!-- Keep-awake: invisible, muted looping video. ?keepawake=0 turns it off. -->
+<video id="ka" src="/keepawake.mp4" muted loop playsinline autoplay
+       style="position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none"></video>
+<script>
+// Default: MJPEG stream in an img tag (the browser swaps the frames itself).
+// If the stream fails or ?mode=poll is set, the page polls single frames instead.
+var img = document.getElementById('screen');
+var hint = document.getElementById('hint');
+var params = new URLSearchParams(location.search);
+var mode = params.get('mode') || 'mjpeg';
+var key = params.get('k') ? '&k=' + encodeURIComponent(params.get('k')) : '';
+var pollTimer = null;
+
+function startMjpeg() {
+  img.onerror = function () { setTimeout(startMjpeg, 1000); };
+  img.src = '/stream.mjpg?t=' + Date.now() + key;
+}
+function startPoll() {
+  var fps = parseInt(params.get('fps') || '8', 10);
+  function next() {
+    var n = new Image();
+    n.onload = function () { img.src = n.src; pollTimer = setTimeout(next, 1000 / fps); };
+    n.onerror = function () { pollTimer = setTimeout(next, 1000); };
+    n.src = '/frame.jpg?t=' + Date.now() + key;
+  }
+  next();
+}
+// Watchdog: reconnect when the MJPEG stream stalls.
+setInterval(function () {
+  if (streamStarted && mode === 'mjpeg' && !img.complete && img.naturalWidth === 0) startMjpeg();
+}, 10000);
+
+// Start the stream only after the page has finished loading: an MJPEG image never "finishes",
+// so starting it early would keep the page's load event pending forever (the Alexa web view may
+// treat that as a failed start).
+var streamStarted = false;
+function startStream() {
+  if (streamStarted) return; streamStarted = true;
+  if (mode === 'poll') startPoll(); else startMjpeg();
+}
+if (document.readyState === 'complete') setTimeout(startStream, 0);
+else window.addEventListener('load', function () { setTimeout(startStream, 0); });
+
+// ---------- Keep awake ----------
+var ka = document.getElementById('ka');
+var keepAwake = params.get('keepawake') !== '0';
+var wakeLock = null;
+function stayAwake() {
+  if (!keepAwake) { ka.pause(); return; }
+  var p = ka.play(); if (p && p.catch) p.catch(function () {});
+  // Screen Wake Lock API: only in secure contexts (HTTPS), usually not on the LAN over HTTP.
+  if ('wakeLock' in navigator && !wakeLock) {
+    navigator.wakeLock.request('screen').then(function (l) {
+      wakeLock = l; l.addEventListener('release', function () { wakeLock = null; });
+    }).catch(function () {});
+  }
+}
+stayAwake();
+setInterval(stayAwake, 30000);
+document.addEventListener('visibilitychange', function () { if (!document.hidden) stayAwake(); });
+
+// ---------- Alexa skill ----------
+// With ?alexa=1 the page loads the Alexa HTML SDK and pings the skill every minute (keep-alive).
+var alexaClient = null;
+if (params.get('alexa') === '1') {
+  var sdk = document.createElement('script');
+  sdk.src = 'https://cdn.html.games.alexa.a2z.com/alexa-html/latest/alexa-html.js';
+  sdk.onload = function () {
+    Alexa.create({ version: '1.1' }).then(function (args) {
+      alexaClient = args.alexa;
+      hint.textContent = 'Alexa connected';
+      alexaClient.skill.onMessage(function () { /* pong from the skill */ });
+      setInterval(function () {
+        try { alexaClient.skill.sendMessage({ type: 'keepalive', at: Date.now() }); } catch (e) {}
+      }, 60000);
+    }).catch(function (e) { hint.textContent = 'Alexa SDK not available'; });
+  };
+  document.head.appendChild(sdk);
+}
+
+// ---------- Touch -> Windows ----------
+// Tap = left click, drag = drag with the button held, long press (0.6 s) = right click.
+var touchOn = false;
+fetch('/config.json?x=1' + key).then(function (r) { return r.json(); }).then(function (c) {
+  if (!c.touch) return;
+  touchOn = true;
+  openWs();
+  hint.textContent = 'Touch active'; hint.style.opacity = 1;
+  setTimeout(function () { hint.style.opacity = 0; }, 3000);
+}).catch(function () {});
+
+// Prefer WebSocket (one open connection, no per-gesture request cost), otherwise HTTP.
+var ws = null;
+function openWs() {
+  if (!touchOn || params.get('ws') === '0') return; // ?ws=0 forces HTTP (for debugging)
+  try {
+    ws = new WebSocket((location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host + '/ws?x=1' + key);
+    ws.onclose = function () { ws = null; setTimeout(openWs, 2000); };
+    ws.onerror = function () {};
+  } catch (e) { ws = null; }
+}
+var queue = [], sending = false;
+function send(t, p) {
+  var ev = { t: t, x: p.x, y: p.y };
+  if (p.d) ev.d = p.d;
+  if (ws && ws.readyState === 1) { ws.send(JSON.stringify(ev)); return; }
+  queue.push(ev);
+  if (!sending) flush();
+}
+function flush() {
+  if (!queue.length) { sending = false; return; }
+  sending = true;
+  // Coalesce moves: only the last one counts, down/up/right are kept
+  var batch = [];
+  queue.forEach(function (e) {
+    if (e.t === 'move' && batch.length && batch[batch.length - 1].t === 'move') batch[batch.length - 1] = e;
+    else batch.push(e);
+  });
+  queue = [];
+  fetch('/input?x=1' + key, { method: 'POST', body: JSON.stringify(batch), headers: { 'Content-Type': 'application/json' } })
+    .catch(function () {}).then(flush);
+}
+
+// Position in the frame (0..1), minus the object-fit:contain bars
+function framePos(ev) {
+  var r = img.getBoundingClientRect();
+  var W = img.naturalWidth || r.width, H = img.naturalHeight || r.height;
+  var s = Math.min(r.width / W, r.height / H);
+  var ox = (r.width - W * s) / 2, oy = (r.height - H * s) / 2;
+  var x = (ev.clientX - r.left - ox) / (W * s), y = (ev.clientY - r.top - oy) / (H * s);
+  if (x < 0 || x > 1 || y < 0 || y > 1) return null;
+  return { x: x, y: y, px: ev.clientX, py: ev.clientY };
+}
+
+var start = null, dragging = false, longTimer = null, longDone = false;
+// Two fingers = scrolling: vertical movement of the midpoint -> mouse wheel (120 = one notch)
+var pointers = {}, scrolling = false, scrollLastY = 0, scrollAcc = 0, scrollPos = null;
+function midpoint() {
+  var ids = Object.keys(pointers); if (ids.length < 2) return null;
+  var a = pointers[ids[0]], b = pointers[ids[1]];
+  return { clientX: (a.clientX + b.clientX) / 2, clientY: (a.clientY + b.clientY) / 2 };
+}
+img.addEventListener('pointerdown', function (ev) {
+  if (!touchOn) return;
+  ev.preventDefault();
+  pointers[ev.pointerId] = { clientX: ev.clientX, clientY: ev.clientY };
+  if (Object.keys(pointers).length === 2) {
+    // cancel the single-finger gesture, start scroll mode
+    clearTimeout(longTimer);
+    if (dragging && start) send('up', start);
+    start = null; dragging = false; longDone = true;
+    scrolling = true; scrollAcc = 0;
+    var m = midpoint(); scrollLastY = m.clientY; scrollPos = framePos(m);
+    try { img.setPointerCapture(ev.pointerId); } catch (e) {}
+    return;
+  }
+  if (scrolling) return;
+  var p = framePos(ev); if (!p) return;
+  start = p; dragging = false; longDone = false;
+  try { img.setPointerCapture(ev.pointerId); } catch (e) {}
+  clearTimeout(longTimer);
+  longTimer = setTimeout(function () {
+    if (start && !dragging) { longDone = true; send('right', start); }
+  }, 600);
+});
+img.addEventListener('pointermove', function (ev) {
+  if (!touchOn) return;
+  if (pointers[ev.pointerId]) pointers[ev.pointerId] = { clientX: ev.clientX, clientY: ev.clientY };
+  if (scrolling) {
+    var m = midpoint(); if (!m || !scrollPos) return;
+    scrollAcc += m.clientY - scrollLastY; scrollLastY = m.clientY;
+    var notches = Math.trunc(scrollAcc / 25);          // 25 px of finger travel = one notch
+    if (notches) { scrollAcc -= notches * 25; send('wheel', { x: scrollPos.x, y: scrollPos.y, d: notches * 120 }); }
+    return;
+  }
+  if (!start || longDone) return;
+  var p = framePos(ev); if (!p) return;
+  if (!dragging && Math.abs(p.px - start.px) + Math.abs(p.py - start.py) > 10) {
+    dragging = true; clearTimeout(longTimer);
+    send('down', start);
+  }
+  if (dragging) send('move', p);
+});
+function endPointer(ev) {
+  delete pointers[ev.pointerId];
+  if (scrolling) { if (!Object.keys(pointers).length) scrolling = false; return; }
+  if (!touchOn || !start) return;
+  clearTimeout(longTimer);
+  var p = framePos(ev) || start;
+  if (dragging) send('up', p);
+  else if (!longDone) { send('down', start); send('up', start); }
+  start = null; dragging = false;
+}
+img.addEventListener('pointerup', endPointer);
+img.addEventListener('pointercancel', endPointer);
+img.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+
+document.body.addEventListener('click', function () {
+  stayAwake();
+  if (touchOn && (document.fullscreenElement || document.webkitFullscreenElement)) return;
+  var el = document.documentElement;
+  var req = el.requestFullscreen || el.webkitRequestFullscreen;
+  if (req) { try { req.call(el); } catch (e) {} }
+  hint.style.opacity = 0;
+});
+setTimeout(function () { hint.style.opacity = 0; }, 5000);
+</script>
+</body>
+</html>
