@@ -2,7 +2,7 @@
 
 **"Alexa, open second screen"** turns an Amazon Echo Show into an extra monitor for a Windows PC. It's a real **extended desktop**, not mirroring, and **touch goes back to Windows**.
 
-![Demo: dragging a window from the laptop onto the Echo Show](docs/demo.gif)
+https://github.com/user-attachments/assets/c93661e0-541c-4ed2-a0f9-a2f4e9cc082f
 
 > A weekend hack, not a product. Tested on my 1280×800 Echo Show and a Windows laptop. Wouldn't recommend it as a gaming display, even though it technically runs on Amazon's *Web API for Games*.
 
