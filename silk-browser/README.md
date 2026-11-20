@@ -11,12 +11,7 @@ Windows: virtual monitor ──ddagrab──► ffmpeg (MJPEG) ──► server.
 1. **ffmpeg 6 or newer (needed for `ddagrab`)**
    `winget install Gyan.FFmpeg`, then open a new terminal and check `ffmpeg -version`.
    If an older ffmpeg comes first in your PATH, `server.js` automatically picks the winget build.
-2. **Virtual monitor** (the winget package did not install a driver for us, so install it manually)
-   - Unzip `VirtualDisplayDriver-x64.zip` from https://github.com/VirtualDrivers/Virtual-Display-Driver/releases to `C:\VirtualDisplayDriver\`
-   - Replace `vdd_settings.xml` there with `..\driver\vdd_settings.xml` (adds the resolutions of all Echo Show models)
-   - Run `installCert.bat` **as administrator** (without it the install fails with "An error occurred")
-   - `devmgmt.msc` → Action → Add legacy hardware → install manually → Display adapters → Have Disk → `MttVDD.inf`
-   - Then in Display settings: set the new monitor to "Extend" and to the Echo's resolution:
+2. **Virtual monitor:** install the virtual display driver step by step as described in the [main README](../README.md#installing-the-virtual-display-driver). Short version: unzip to `C:\VirtualDisplayDriver\`, copy `..\driver\vdd_settings.xml` there, run `installCert.bat` **as administrator**, then *Add legacy hardware* in Device Manager with `MttVDD.inf`. Then in Display settings set the new monitor to "Extend" and to the Echo's resolution:
 
    | Device | Display |
    |---|---|

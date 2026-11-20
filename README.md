@@ -42,7 +42,7 @@ Each folder is self-contained. Start with the Silk version, it proves the hard p
 
 ## Quick start
 
-1. Install the [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver/releases) as described in the [Silk version](silk-browser/README.md#one-time-setup), and set the new monitor to *Extend* at 1280×800 (Echo Show 8/10).
+1. Install the virtual display driver, step by step as described in [Installing the virtual display driver](#installing-the-virtual-display-driver) below, and set the new monitor to *Extend* at your Echo's resolution.
 2. `winget install Gyan.FFmpeg Cloudflare.cloudflared`, then `npm install -g ask-cli` and `ask configure` (no AWS account needed).
 3. Find your virtual monitor:
    ```
@@ -54,6 +54,58 @@ Each folder is self-contained. Start with the Silk version, it proves the hard p
    .\start.cmd --adapter 1 --display 0 --target 1280x800 --touch --tunnel --tunnel-protocol http2
    ```
 5. Wait for `[skill] Deploy done`, then say **"Alexa, open second screen"** (or on a German Echo: **"Alexa, öffne zweiten Bildschirm"**).
+
+## Installing the virtual display driver
+
+Windows needs a monitor that doesn't exist. The open-source [Virtual Display Driver](https://github.com/VirtualDrivers/Virtual-Display-Driver) provides one. You only do this once.
+
+> **Don't use the winget package.** `winget install VirtualDrivers.Virtual-Display-Driver` finished without errors on my machine, but no driver was installed. The manual install below works.
+
+### 1. Download the driver
+
+Go to the [releases page](https://github.com/VirtualDrivers/Virtual-Display-Driver/releases) and download `VirtualDisplayDriver-x64.zip` (tested with release 24.10.27).
+
+### 2. Unzip it to `C:\VirtualDisplayDriver\`
+
+Create the folder if it doesn't exist, and unzip the contents directly into it, so that `C:\VirtualDisplayDriver\MttVDD.inf` exists. The driver reads its settings from exactly this folder. If the folder is missing, your settings are silently ignored.
+
+### 3. Add the Echo resolutions
+
+Copy [`driver/vdd_settings.xml`](driver/vdd_settings.xml) from this repo to `C:\VirtualDisplayDriver\vdd_settings.xml` and replace the existing file. It adds the resolutions of all Echo Show models.
+
+### 4. Install the certificate: run `installCert.bat` as administrator
+
+In `C:\VirtualDisplayDriver\`, right-click `installCert.bat` → **Run as administrator** and confirm the UAC prompt. The driver is signed with its own certificate, and Windows only accepts it once that certificate is installed.
+
+**Don't skip this step.** Without it, the next step fails with *"An error occurred"*.
+
+### 5. Install the driver in Device Manager
+
+1. Press `Win + R`, type `devmgmt.msc` and press Enter.
+2. Click the top entry (your computer's name), so the menu shows all options.
+3. **Action → Add legacy hardware** (German Windows: *Aktion → Legacyhardware hinzufügen*). Click **Next**.
+4. Choose **Install the hardware that I manually select from a list (Advanced)** → **Next**.
+5. Select **Display adapters** → **Next**.
+6. Click **Have Disk…** → **Browse…**, select `C:\VirtualDisplayDriver\MttVDD.inf` → **Open** → **OK**.
+7. Select **Virtual Display Driver** → **Next** → **Next**. If Windows asks whether to install the driver, confirm.
+8. Click **Finish**.
+
+### 6. Check that it worked
+
+Under **Display adapters** in Device Manager there's now a *Virtual Display Driver* without a warning sign. In PowerShell:
+```
+Get-PnpDevice -Class Display | Format-Table Status, FriendlyName
+```
+should list it with status `OK`.
+
+### 7. Set up the monitor in Windows
+
+Open **Settings → System → Display**. You'll see an additional monitor.
+- Select it and set **Multiple displays** to **Extend these displays** (not *Duplicate*).
+- Set **Display resolution** to your Echo's resolution (see [Supported devices](#supported-devices)).
+- Drag it to where it should sit relative to your other screens.
+
+**If a resolution is missing:** check that `C:\VirtualDisplayDriver\vdd_settings.xml` is the file from this repo, then switch the driver off and on with `driver\vdd.cmd off` and `driver\vdd.cmd on`, or restart Windows.
 
 ## Turning the virtual monitor on and off
 
