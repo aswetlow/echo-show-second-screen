@@ -65,17 +65,21 @@ Windows needs a monitor that doesn't exist. The open-source [Virtual Display Dri
 
 Go to the [releases page](https://github.com/VirtualDrivers/Virtual-Display-Driver/releases) and download `VirtualDisplayDriver-x64.zip` (tested with release 24.10.27).
 
-### 2. Unzip it to `C:\VirtualDisplayDriver\`
+### 2. Unzip it
 
-Create the folder if it doesn't exist, and unzip the contents directly into it, so that `C:\VirtualDisplayDriver\MttVDD.inf` exists. The driver reads its settings from exactly this folder. If the folder is missing, your settings are silently ignored.
+Unzip the contents to a folder of your choice. The simplest choice is `C:\VirtualDisplayDriver\`, because that's where the driver looks for its settings by default (see step 3). You need the folder for steps 4 and 5.
 
 ### 3. Add the Echo resolutions
 
-Copy [`driver/vdd_settings.xml`](driver/vdd_settings.xml) from this repo to `C:\VirtualDisplayDriver\vdd_settings.xml` and replace the existing file. It adds the resolutions of all Echo Show models.
+Copy [`driver/vdd_settings.xml`](driver/vdd_settings.xml) from this repo to `C:\VirtualDisplayDriver\vdd_settings.xml` (create the folder if it doesn't exist) and replace any existing file. It adds the resolutions of all Echo Show models.
+
+The driver reads `vdd_settings.xml` only from one folder: the path stored in the registry value `HKLM\SOFTWARE\MikeTheTech\VirtualDisplayDriver\VDDPATH`, or `C:\VirtualDisplayDriver\` if that value doesn't exist. A manual install doesn't create the registry value, so the default applies. If the folder or file is missing, your settings are silently ignored.
+
+**Want another folder?** Put `vdd_settings.xml` there and run `driver\vdd.cmd path D:\Your\Folder` once (after step 5). It writes the registry value and restarts the driver. `driver\vdd.cmd path` shows which folder is in use. An environment variable doesn't work here: the driver runs as a Windows service and only reads the registry.
 
 ### 4. Install the certificate: run `installCert.bat` as administrator
 
-In `C:\VirtualDisplayDriver\`, right-click `installCert.bat` → **Run as administrator** and confirm the UAC prompt. The driver is signed with its own certificate, and Windows only accepts it once that certificate is installed.
+In the folder from step 2, right-click `installCert.bat` → **Run as administrator** and confirm the UAC prompt. The driver is signed with its own certificate, and Windows only accepts it once that certificate is installed.
 
 **Don't skip this step.** Without it, the next step fails with *"An error occurred"*.
 
@@ -86,7 +90,7 @@ In `C:\VirtualDisplayDriver\`, right-click `installCert.bat` → **Run as admini
 3. **Action → Add legacy hardware** (German Windows: *Aktion → Legacyhardware hinzufügen*). Click **Next**.
 4. Choose **Install the hardware that I manually select from a list (Advanced)** → **Next**.
 5. Select **Display adapters** → **Next**.
-6. Click **Have Disk…** → **Browse…**, select `C:\VirtualDisplayDriver\MttVDD.inf` → **Open** → **OK**.
+6. Click **Have Disk…** → **Browse…**, select `MttVDD.inf` from the folder from step 2 → **Open** → **OK**.
 7. Select **Virtual Display Driver** → **Next** → **Next**. If Windows asks whether to install the driver, confirm.
 8. Click **Finish**.
 
@@ -105,7 +109,7 @@ Open **Settings → System → Display**. You'll see an additional monitor.
 - Set **Display resolution** to your Echo's resolution (see [Supported devices](#supported-devices)).
 - Drag it to where it should sit relative to your other screens.
 
-**If a resolution is missing:** check that `C:\VirtualDisplayDriver\vdd_settings.xml` is the file from this repo, then switch the driver off and on with `driver\vdd.cmd off` and `driver\vdd.cmd on`, or restart Windows.
+**If a resolution is missing:** check with `driver\vdd.cmd path` which folder the driver uses and that its `vdd_settings.xml` is the file from this repo, then switch the driver off and on with `driver\vdd.cmd off` and `driver\vdd.cmd on`, or restart Windows.
 
 ## Turning the virtual monitor on and off
 
@@ -115,6 +119,8 @@ When you don't use the Echo, Windows still has the extra monitor and windows can
 driver\vdd.cmd off
 driver\vdd.cmd on
 driver\vdd.cmd status
+driver\vdd.cmd path                 # which folder vdd_settings.xml is read from
+driver\vdd.cmd path D:\Your\Folder  # use another folder
 ```
 
 It asks for admin rights (UAC) and disables or enables the driver in Device Manager. Windows remembers the monitor's position and resolution.

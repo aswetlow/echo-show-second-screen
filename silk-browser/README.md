@@ -11,7 +11,7 @@ Windows: virtual monitor ──ddagrab──► ffmpeg (MJPEG) ──► server.
 1. **ffmpeg 6 or newer (needed for `ddagrab`)**
    `winget install Gyan.FFmpeg`, then open a new terminal and check `ffmpeg -version`.
    If an older ffmpeg comes first in your PATH, `server.js` automatically picks the winget build.
-2. **Virtual monitor:** install the virtual display driver step by step as described in the [main README](../README.md#installing-the-virtual-display-driver). Short version: unzip to `C:\VirtualDisplayDriver\`, copy `..\driver\vdd_settings.xml` there, run `installCert.bat` **as administrator**, then *Add legacy hardware* in Device Manager with `MttVDD.inf`. Then in Display settings set the new monitor to "Extend" and to the Echo's resolution:
+2. **Virtual monitor:** install the virtual display driver step by step as described in the [main README](../README.md#installing-the-virtual-display-driver). Short version: unzip the driver, copy `..\driver\vdd_settings.xml` to `C:\VirtualDisplayDriver\` (or another folder set with `..\driver\vdd.cmd path`), run `installCert.bat` **as administrator**, then *Add legacy hardware* in Device Manager with `MttVDD.inf`. Then in Display settings set the new monitor to "Extend" and to the Echo's resolution:
 
    | Device | Display |
    |---|---|
@@ -22,7 +22,7 @@ Windows: virtual monitor ──ddagrab──► ffmpeg (MJPEG) ──► server.
    | Echo Show 15 / 21 | 1920 × 1080 |
    | Echo Show 11 (2025) | 1920 × 1200 |
 
-   The driver reads its settings from `C:\VirtualDisplayDriver\vdd_settings.xml` (create the folder if it does not exist). If a new resolution does not show up after a change, restart Windows.
+   The driver reads its settings from `C:\VirtualDisplayDriver\vdd_settings.xml` unless another folder is set with `..\driver\vdd.cmd path`. If a new resolution does not show up after a change, restart Windows.
 3. **Node.js 18 or newer.** No other packages needed.
 
 ## Start
