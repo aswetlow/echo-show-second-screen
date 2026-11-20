@@ -44,16 +44,13 @@ Each folder is self-contained. Start with the Silk version, it proves the hard p
 
 1. Install the virtual display driver, step by step as described in [Installing the virtual display driver](#installing-the-virtual-display-driver) below, and set the new monitor to *Extend* at your Echo's resolution.
 2. `winget install Gyan.FFmpeg Cloudflare.cloudflared`, then `npm install -g ask-cli` and `ask configure` (no AWS account needed).
-3. Find your virtual monitor:
+3. Start everything:
    ```
    cd web-api-for-games
-   node server.js --probe
+   .\start.cmd
    ```
-4. Start everything (use the adapter and display values from `--probe`):
-   ```
-   .\start.cmd --adapter 1 --display 0 --target 1280x800 --touch --tunnel --tunnel-protocol http2
-   ```
-5. Wait for `[skill] Deploy done`, then say **"Alexa, open second screen"** (or on a German Echo: **"Alexa, öffne zweiten Bildschirm"**).
+   That's it. On the first start the server finds the virtual monitor by its Echo resolution and remembers it in `monitor.json`. It also starts the Cloudflare tunnel, deploys the skill and turns touch on. Options like `--no-touch` or `--no-tunnel` are listed at the top of [`server.js`](web-api-for-games/server.js).
+4. Wait for `[skill] Deploy done`, then say **"Alexa, open second screen"** (or on a German Echo: **"Alexa, öffne zweiten Bildschirm"**).
 
 ## Installing the virtual display driver
 
@@ -153,7 +150,7 @@ Windows only for now. macOS would need a different virtual display and capture p
 ## Security
 
 - While the tunnel runs, your screen is reachable from the internet. Every request through the tunnel needs a random key, generated on each start (or fixed with `--key`).
-- With `--touch`, anyone with URL **and** key can control your mouse on the virtual monitor. Only use it on your own devices.
+- Touch is on by default: anyone with URL **and** key can control your mouse on the virtual monitor. Only use it on your own devices, or start with `--no-touch`.
 - The skill endpoint does not verify Alexa request signatures. That's fine for a private dev skill, but required before publishing.
 
 ## Credits

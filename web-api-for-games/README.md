@@ -1,6 +1,6 @@
 # Web API for Games: "Alexa, open second screen", with touch
 
-The full version: a custom Alexa skill opens the second monitor on the Echo Show (via Alexa's Web API for Games), and with `--touch` **the Echo's touchscreen controls the Windows mouse.** The skill part is described further down.
+The full version: a custom Alexa skill opens the second monitor on the Echo Show (via Alexa's Web API for Games), and **the Echo's touchscreen controls the Windows mouse.** The skill part is described further down.
 
 | Gesture on the Echo | Effect in Windows |
 |---|---|
@@ -15,12 +15,13 @@ Echo: touch ──WebSocket /ws {t,x,y} (fallback: POST /input)──► server.
 
 ## Start with touch
 
-The skill setup is described below under "Alexa, open second screen". Then add `--touch`:
+The skill setup is described below under "Alexa, open second screen". Then:
 ```
-.\start.cmd --adapter 1 --display 0 --target 1280x800 --touch --tunnel --tunnel-protocol http2
+.\start.cmd
 ```
+Touch, tunnel (http2) and the skill deploy are on by default. The virtual monitor is found automatically on the first start and saved in `monitor.json` (search again with `--redetect`).
 Wait for `[skill] Deploy done`, then talk to Alexa.
-On the LAN via Silk, without the skill, this works too: `.\start.cmd --adapter 1 --display 0 --target 1280x800 --touch`
+On the LAN via Silk, without the skill, this works too: `.\start.cmd --no-tunnel`
 
 At startup the console lists all monitors and prints `[touch] controlling monitor N: … 1280x800 at X,Y`. That has to be the virtual monitor. It is detected via the `--target` resolution; otherwise pick it with `--input-monitor N`.
 
@@ -33,7 +34,7 @@ At startup the console lists all monitors and prints `[touch] controlling monito
 
 ## Limits and security
 
-- **Touch is remote control of your PC.** That's why it is only active with `--touch`, and through the tunnel only with the key `k`. Anyone with the URL plus key can move and click your mouse on the virtual monitor.
+- **Touch is remote control of your PC.** Through the tunnel it only works with the key `k`. Start with `--no-touch` if you only want the picture. Anyone with the URL plus key can move and click your mouse on the virtual monitor.
 - Windows running as administrator ignore the clicks (Windows UIPI protection) unless you start the server as administrator too.
 - No pinch zoom and no keyboard.
 - Latency: touch runs over one persistent WebSocket (no npm package), but the internet round trip through the tunnel remains. Biggest remaining lever: load picture and touch directly over LAN HTTPS with your own domain.
@@ -59,15 +60,15 @@ The skill speaks English (en-US, en-GB) and German (de-DE); the reply language f
 
 ## Requirements
 
-- The [Silk browser version](../silk-browser/README.md) works (virtual monitor, ffmpeg, `--adapter 1 --display 0`).
+- The virtual monitor is installed and set to the Echo's resolution, and ffmpeg 6+ is installed (see the [main README](../README.md#installing-the-virtual-display-driver)).
 - `cloudflared` in PATH. Check with `cloudflared --version`, otherwise `winget install Cloudflare.cloudflared`.
 - ASK CLI v2: `npm install -g ask-cli`, then `ask configure` once (browser login; answer **No** to linking an AWS account). The developer account must be the same Amazon account your Echo Show is registered to.
 
 ## Start
 
-**In the `web-api-for-games` folder** (without touch; add `--touch` for touch):
+**In the `web-api-for-games` folder:**
 ```
-.\start.cmd --adapter 1 --display 0 --target 1280x800 --tunnel --tunnel-protocol http2
+.\start.cmd
 ```
 The server starts the tunnel, prints the public URL, writes it into `skill-package\skill.json` and then runs `ask deploy --ignore-hash` by itself. Wait for `[skill] Deploy done` (about a minute). The first deploy creates the skill, uploads the language models and enables it for testing in the development stage. No certification needed. Turn the automatic deploy off with `--no-deploy`.
 
@@ -79,7 +80,7 @@ Test first: the console prints `Test in a browser: https://…trycloudflare.com/
 
 The server re-deploys the skill on every start, which takes about a minute. Keep the server running while testing. For a fixed URL use a named Cloudflare tunnel with your own domain (`cloudflared tunnel create …`) and start the server with
 ```
-.\start.cmd --adapter 1 --display 0 --target 1280x800 --public-url https://screen.yourdomain.com --key MYSECRET
+.\start.cmd --public-url https://screen.yourdomain.com --key MYSECRET
 ```
 Then one `ask deploy` is enough.
 
@@ -100,7 +101,7 @@ Then one `ask deploy` is enough.
 | Symptom | Cause / fix |
 |---|---|
 | Alexa says the skill's response had a problem | No `Alexa: LaunchRequest` in the console → the skill still has an old tunnel URL. Wait for `[skill] Deploy done`, or look for `Deploy FAILED` and run `ask deploy --ignore-hash` yourself. Check Build → Endpoint in the developer console. |
-| `DNS_PROBE_FINISHED_NXDOMAIN` for the tunnel URL | Tunnel not connected yet, or DNS cached too early: watch for `[cloudflared] Registered tunnel connection`, use `--tunnel-protocol http2`, `ipconfig /flushdns`. |
+| `DNS_PROBE_FINISHED_NXDOMAIN` for the tunnel URL | Tunnel not connected yet, or DNS cached too early: watch for `[cloudflared] Registered tunnel connection`, `ipconfig /flushdns` (the tunnel already uses http2 by default). |
 | `ask` not found | `npm install -g ask-cli`, then `ask configure`. |
 | Alexa does not open the skill | Echo language matches a skill locale? Same Amazon account as the developer console? |
 | Page opens but stays black | MJPEG gets buffered through the tunnel: start with `--skill-mode poll`. |

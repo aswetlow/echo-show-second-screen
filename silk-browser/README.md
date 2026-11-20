@@ -82,5 +82,5 @@ The viewer page plays an invisible, muted looping video (`keepawake.mp4`). With 
 ## Known limits
 
 - LAN and plain HTTP only. Fine for Silk. The Alexa skill version in [`web-api-for-games`](../web-api-for-games/README.md) needs public HTTPS, so a Cloudflare tunnel.
-- No touch input back to Windows here. The `web-api-for-games` server has it (`--touch`), and it also works in Silk on the LAN.
+- No touch input back to Windows here. The `web-api-for-games` server has it (on by default), and `.\start.cmd --no-tunnel` there gives you the same in Silk on the LAN, with automatic monitor detection.
 - One ffmpeg process serves all clients, so several Echo Shows at once work.
