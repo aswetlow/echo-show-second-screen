@@ -106,20 +106,19 @@ ensureVirtualMonitor();
 const CONFIG_FILE = path.join(__dirname, 'monitor.json');
 const ECHO_RESOLUTIONS = ['1280x800', '1340x800', '960x480', '1024x600', '1920x1200', '1920x1080'];
 
-function probeOutputs() {
+function probeOne(a, d) {
   const { spawnSync } = require('child_process');
+  const r = spawnSync(FFMPEG, ['-hide_banner', '-loglevel', 'verbose',
+    '-init_hw_device', `d3d11va=dda:${a}`, '-filter_hw_device', 'dda',
+    '-filter_complex', `ddagrab=output_idx=${d}:framerate=5,hwdownload,format=bgra`,
+    '-frames:v', '1', '-f', 'null', '-'], { encoding: 'utf8', timeout: 15000 });
+  const log = (r.stderr || '') + (r.stdout || '');
+  const m = log.match(/Opened dxgi output \d+ with dimensions (\d+)x(\d+)/);
+  return m ? { adapter: String(a), display: String(d), res: `${m[1]}x${m[2]}` } : null;
+}
+function probeOutputs() {
   const found = [];
-  for (let a = 0; a < 4; a++) {
-    for (let d = 0; d < 4; d++) {
-      const r = spawnSync(FFMPEG, ['-hide_banner', '-loglevel', 'verbose',
-        '-init_hw_device', `d3d11va=dda:${a}`, '-filter_hw_device', 'dda',
-        '-filter_complex', `ddagrab=output_idx=${d}:framerate=5,hwdownload,format=bgra`,
-        '-frames:v', '1', '-f', 'null', '-'], { encoding: 'utf8', timeout: 15000 });
-      const log = (r.stderr || '') + (r.stdout || '');
-      const m = log.match(/Opened dxgi output \d+ with dimensions (\d+)x(\d+)/);
-      if (m) found.push({ adapter: String(a), display: String(d), res: `${m[1]}x${m[2]}` });
-    }
-  }
+  for (let a = 0; a < 4; a++) for (let d = 0; d < 4; d++) { const o = probeOne(a, d); if (o) found.push(o); }
   return found;
 }
 
@@ -153,10 +152,22 @@ if (SOURCE === 'ddagrab' && (!ADAPTER || !DISPLAY)) {
   if (!args.includes('--redetect')) {
     try { saved = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (e) { /* first start */ }
   }
+  // The saved numbers can point to another monitor after monitors were added, removed or the
+  // virtual one was switched off and on (Windows renumbers the outputs). So check it on every start:
+  // the saved output must still have the saved resolution. A laptop-sized pick (1920x...) is
+  // searched again every time, because it may be the laptop screen chosen while the virtual
+  // monitor was off.
+  if (saved) {
+    const now = probeOne(saved.adapter, saved.display);
+    if (!now || now.res !== saved.res || saved.res.startsWith('1920x')) {
+      if (!saved.res.startsWith('1920x')) console.log(`[monitor] saved monitor (adapter ${saved.adapter}, display ${saved.display}, ${saved.res}) is now ${now ? now.res : 'gone'}, searching again`);
+      saved = null;
+    }
+  }
   if (saved && (!TARGET || saved.res === TARGET.toLowerCase())) {
     console.log(`[monitor] using saved monitor: adapter ${saved.adapter}, display ${saved.display}, ${saved.res}  (search again: --redetect)`);
   } else {
-    console.log('[monitor] looking for the virtual monitor (only on the first start, takes a few seconds) ...');
+    console.log('[monitor] looking for the virtual monitor (takes a few seconds) ...');
     const found = probeOutputs();
     saved = pickOutput(found);
     if (!saved) {
