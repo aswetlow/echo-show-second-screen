@@ -53,7 +53,7 @@ Each folder is self-contained. Start with the Silk version, it proves the hard p
    .\start.cmd
    ```
    That's it. On the first start the server finds the virtual monitor by its Echo resolution and remembers it in `monitor.json`. It also starts the Cloudflare tunnel, deploys the skill and turns touch on. Options like `--no-touch` or `--no-tunnel` are listed at the top of [`server.js`](web-api-for-games/server.js).
-4. Wait for `[skill] Deploy done`, then say **"Alexa, open second screen"**. The skill also understands other languages, depending on your Echo's language:
+4. Wait until the console shows the green **READY** box (about a minute), then say **"Alexa, open second screen"**. The skill also understands other languages, depending on your Echo's language:
 
    | Language | Locales | Say |
    |---|---|---|

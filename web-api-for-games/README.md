@@ -21,7 +21,7 @@ The skill setup is described below under "Alexa, open second screen". Then:
 .\start.cmd
 ```
 Touch, tunnel (http2) and the skill deploy are on by default. The virtual monitor is found automatically on the first start and saved in `monitor.json` (search again with `--redetect`).
-Wait for `[skill] Deploy done`, then talk to Alexa.
+Wait until the console shows the green **READY** box (about a minute), then talk to Alexa.
 On the LAN via Silk, without the skill, this works too: `.\start.cmd --no-tunnel`
 
 At startup the console lists all monitors and prints `[touch] controlling monitor N: … 1280x800 at X,Y`. That has to be the virtual monitor. It is detected via the Echo resolution; otherwise pick it with `--input-monitor N`.
@@ -81,7 +81,7 @@ The skill is a private developer skill (not in the Skill Store) and understands 
 ```
 .\start.cmd
 ```
-The server starts the tunnel, prints the public URL, writes it into `skill-package\skill.json` and then runs `ask deploy --ignore-hash` by itself. Wait for `[skill] Deploy done` (about a minute). The first deploy creates the skill, uploads the language models and enables it for testing in the development stage. No certification needed. Turn the automatic deploy off with `--no-deploy`.
+The server starts the tunnel, prints the public URL, writes it into `skill-package\skill.json` and then runs `ask deploy --ignore-hash` by itself. Wait for the green **READY** box (about a minute). The first deploy creates the skill, uploads the language models and enables it for testing in the development stage. No certification needed. Turn the automatic deploy off with `--no-deploy`.
 
 **Then:** "Alexa, open second screen" (or the phrase for your Echo's language, see the table above). End with "Alexa, stop".
 
@@ -111,7 +111,7 @@ Then one `ask deploy` is enough.
 
 | Symptom | Cause / fix |
 |---|---|
-| Alexa says the skill's response had a problem | No `Alexa: LaunchRequest` in the console → the skill still has an old tunnel URL. Wait for `[skill] Deploy done`, or look for `Deploy FAILED` and run `ask deploy --ignore-hash` yourself. Check Build → Endpoint in the developer console. |
+| Alexa says the skill's response had a problem | No `[skill] LaunchRequest` line in the console → the skill still has an old tunnel URL. Wait for the green READY box, or look for `Deploy FAILED` and run `ask deploy --ignore-hash` yourself. Check Build → Endpoint in the developer console. |
 | `DNS_PROBE_FINISHED_NXDOMAIN` for the tunnel URL | Tunnel not connected yet, or DNS cached too early: watch for `[cloudflared] Registered tunnel connection`, `ipconfig /flushdns` (the tunnel already uses http2 by default). |
 | `ask` not found | `npm install -g ask-cli`, then `ask configure`. |
 | Alexa does not open the skill | Echo language matches a skill locale? Same Amazon account as the developer console? |

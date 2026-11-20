@@ -19,6 +19,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawn, execFileSync } = require('child_process');
+// Without this, PowerShell prints its progress bar ("Preparing modules for first use") as CLIXML.
+const PS_QUIET = "$ProgressPreference = 'SilentlyContinue'; ";
 
 // ---------- Options ----------
 const args = process.argv.slice(2);
@@ -59,7 +61,7 @@ function listMonitors() {
     `[System.Windows.Forms.Screen]::AllScreens | ForEach-Object { '{0};{1};{2};{3};{4};{5}' -f $_.DeviceName,$_.Primary,$_.Bounds.X,$_.Bounds.Y,$_.Bounds.Width,$_.Bounds.Height }`;
   try {
     const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand',
-      Buffer.from(ps, 'utf16le').toString('base64')], { encoding: 'utf8' });
+      Buffer.from(PS_QUIET + ps, 'utf16le').toString('base64')], { encoding: 'utf8' });
     return out.trim().split(/\r?\n/).filter(Boolean).map((line, i) => {
       const [name, primary, x, y, w, h] = line.trim().split(';');
       return { nr: i + 1, name, primary: primary === 'True', x: +x, y: +y, w: +w, h: +h };
@@ -77,7 +79,7 @@ function listMonitors() {
 const VDD_MATCH = "FriendlyName -match 'Virtual Display|IddSample|MttVDD'";
 function psRun(ps) {
   return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand',
-    Buffer.from(ps, 'utf16le').toString('base64')], { encoding: 'utf8' }).trim();
+    Buffer.from(PS_QUIET + ps, 'utf16le').toString('base64')], { encoding: 'utf8' }).trim();
 }
 function sleepMs(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
 function ensureVirtualMonitor() {
@@ -89,7 +91,7 @@ function ensureVirtualMonitor() {
   if (status.split(',').includes('OK')) { console.log('[vdd] virtual monitor is on'); return; }
   console.log('[vdd] virtual monitor is off, turning it on. Please confirm the Windows admin prompt ...');
   const enablePs = `Get-PnpDevice -Class Display | Where-Object { $_.${VDD_MATCH} -and $_.Status -eq 'Error' } | Enable-PnpDevice -Confirm:$false`;
-  const elevatePs = `Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-EncodedCommand','${Buffer.from(enablePs, 'utf16le').toString('base64')}'`;
+  const elevatePs = `Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-EncodedCommand','${Buffer.from(PS_QUIET + enablePs, 'utf16le').toString('base64')}'`;
   try { psRun(elevatePs); } catch (e) { console.error('[vdd] not turned on (admin prompt declined?). Run driver\\vdd.cmd on'); return; }
   // Windows needs a moment until the new monitor shows up for ddagrab
   for (let i = 0; i < 10; i++) {
@@ -246,8 +248,14 @@ let ff = null;
 
 function startCapture() {
   const a = ffmpegArgs();
-  console.log('[ffmpeg]', FFMPEG, a.join(' '));
-  ff = spawn(FFMPEG, a, { stdio: ['ignore', 'pipe', 'inherit'] });
+  if (args.includes('--verbose')) console.log('[ffmpeg]', FFMPEG, a.join(' '));
+  ff = spawn(FFMPEG, a, { stdio: ['ignore', 'pipe', 'pipe'] });
+  // MJPEG needs the "yuvj" full-range pixel format. ffmpeg calls it deprecated but has no
+  // working replacement for MJPEG yet (yuv420p gives washed-out colors), so hide that warning.
+  ff.stderr.on('data', (d) => {
+    const lines = d.toString().split(/\r?\n/).filter((l) => l.trim() && !/deprecated pixel format/.test(l));
+    if (lines.length) process.stderr.write(lines.join('\n') + '\n');
+  });
   let buf = Buffer.alloc(0);
   ff.stdout.on('data', (chunk) => {
     buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;

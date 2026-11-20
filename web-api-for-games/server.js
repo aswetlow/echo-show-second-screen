@@ -24,6 +24,7 @@
 //   --tunnel-protocol P   http2 (default), quic or auto
 //   --skill-mode poll     skill page polls single frames instead of MJPEG (if the stream stalls)
 //   --source test         test pattern instead of the screen
+//   --verbose             show the ffmpeg command line
 //   --all-frames          send every frame (default: only frames where the screen changed)
 //   --port 8080 --fps 10 --quality 6
 
@@ -32,6 +33,8 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const { spawn, execFileSync } = require('child_process');
+// Without this, PowerShell prints its progress bar ("Preparing modules for first use") as CLIXML.
+const PS_QUIET = "$ProgressPreference = 'SilentlyContinue'; ";
 const crypto = require('crypto');
 
 // ---------- Options ----------
@@ -80,7 +83,7 @@ function listMonitors() {
     `[System.Windows.Forms.Screen]::AllScreens | ForEach-Object { '{0};{1};{2};{3};{4};{5}' -f $_.DeviceName,$_.Primary,$_.Bounds.X,$_.Bounds.Y,$_.Bounds.Width,$_.Bounds.Height }`;
   try {
     const out = execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand',
-      Buffer.from(ps, 'utf16le').toString('base64')], { encoding: 'utf8' });
+      Buffer.from(PS_QUIET + ps, 'utf16le').toString('base64')], { encoding: 'utf8' });
     return out.trim().split(/\r?\n/).filter(Boolean).map((line, i) => {
       const [name, primary, x, y, w, h] = line.trim().split(';');
       return { nr: i + 1, name, primary: primary === 'True', x: +x, y: +y, w: +w, h: +h };
@@ -98,7 +101,7 @@ function listMonitors() {
 const VDD_MATCH = "FriendlyName -match 'Virtual Display|IddSample|MttVDD'";
 function psRun(ps) {
   return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand',
-    Buffer.from(ps, 'utf16le').toString('base64')], { encoding: 'utf8' }).trim();
+    Buffer.from(PS_QUIET + ps, 'utf16le').toString('base64')], { encoding: 'utf8' }).trim();
 }
 function sleepMs(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
 function ensureVirtualMonitor() {
@@ -110,7 +113,7 @@ function ensureVirtualMonitor() {
   if (status.split(',').includes('OK')) { console.log('[vdd] virtual monitor is on'); return; }
   console.log('[vdd] virtual monitor is off, turning it on. Please confirm the Windows admin prompt ...');
   const enablePs = `Get-PnpDevice -Class Display | Where-Object { $_.${VDD_MATCH} -and $_.Status -eq 'Error' } | Enable-PnpDevice -Confirm:$false`;
-  const elevatePs = `Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-EncodedCommand','${Buffer.from(enablePs, 'utf16le').toString('base64')}'`;
+  const elevatePs = `Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-EncodedCommand','${Buffer.from(PS_QUIET + enablePs, 'utf16le').toString('base64')}'`;
   try { psRun(elevatePs); } catch (e) { console.error('[vdd] not turned on (admin prompt declined?). Run driver\\vdd.cmd on'); return; }
   // Windows needs a moment until the new monitor shows up for ddagrab
   for (let i = 0; i < 10; i++) {
@@ -278,7 +281,7 @@ while (($l = [Console]::In.ReadLine()) -ne $null) {
   }
 }`;
   inputProc = spawn('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand',
-    Buffer.from(ps, 'utf16le').toString('base64')], { stdio: ['pipe', 'inherit', 'inherit'] });
+    Buffer.from(PS_QUIET + ps, 'utf16le').toString('base64')], { stdio: ['pipe', 'inherit', 'inherit'] });
   inputProc.on('exit', (c) => { console.error(`[touch] helper exited (code ${c})`); inputProc = null; });
   process.on('exit', () => { if (inputProc) inputProc.kill(); });
 }
@@ -380,8 +383,14 @@ let ff = null;
 
 function startCapture() {
   const a = ffmpegArgs();
-  console.log('[ffmpeg]', FFMPEG, a.join(' '));
-  ff = spawn(FFMPEG, a, { stdio: ['ignore', 'pipe', 'inherit'] });
+  if (args.includes('--verbose')) console.log('[ffmpeg]', FFMPEG, a.join(' '));
+  ff = spawn(FFMPEG, a, { stdio: ['ignore', 'pipe', 'pipe'] });
+  // MJPEG needs the "yuvj" full-range pixel format. ffmpeg calls it deprecated but has no
+  // working replacement for MJPEG yet (yuv420p gives washed-out colors), so hide that warning.
+  ff.stderr.on('data', (d) => {
+    const lines = d.toString().split(/\r?\n/).filter((l) => l.trim() && !/deprecated pixel format/.test(l));
+    if (lines.length) process.stderr.write(lines.join('\n') + '\n');
+  });
   let buf = Buffer.alloc(0);
   ff.stdout.on('data', (chunk) => {
     buf = buf.length ? Buffer.concat([buf, chunk]) : chunk;
@@ -549,17 +558,38 @@ function updateSkillEndpoint(publicUrl) {
 
 // The quick tunnel URL changes on every start, so push the new endpoint to Amazon automatically.
 // Turn off with --no-deploy.
+let deploying = false; // the [status] line stays quiet while the deploy spinner runs
 function autoDeploy() {
-  console.log('[skill] running "ask deploy --ignore-hash" so Alexa knows the new URL (takes ~1 min) ...');
+  console.log('\n[skill] Deploying the skill with the new tunnel URL (about 1 minute).');
+  console.log('[skill] \x1b[33mDon\'t start the skill yet\x1b[0m: until the deploy is done, Alexa still calls the old URL');
+  console.log('        and answers "There was a problem with the requested skill\'s response".\n');
   const t0 = Date.now();
-  const dep = spawn('ask', ['deploy', '--ignore-hash'], { cwd: __dirname, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
+  deploying = true;
+  const spin = ['|', '/', '-', '\\'];
+  let n = 0;
+  const spinner = setInterval(() => {
+    const sec = Math.round((Date.now() - t0) / 1000);
+    process.stdout.write(`\r\x1b[K  ${spin[n++ % 4]} Deploying ... ${sec} s`);
+  }, 250);
+  // One command string (not an args array): shell:true with args triggers Node's DEP0190 warning.
+  const dep = spawn('ask deploy --ignore-hash', { cwd: __dirname, shell: true, stdio: ['ignore', 'pipe', 'pipe'] });
   let out = '';
   dep.stdout.on('data', (d) => { out += d; });
   dep.stderr.on('data', (d) => { out += d; });
   dep.on('error', (e) => console.error(`[skill] ask CLI not found (${e.message}). Run "ask deploy --ignore-hash" yourself.`));
   dep.on('exit', (code) => {
+    clearInterval(spinner);
+    deploying = false;
+    process.stdout.write('\r\x1b[K');
     const sec = Math.round((Date.now() - t0) / 1000);
-    if (code === 0) console.log(`\n[skill] Deploy done after ${sec} s. Say "Alexa, open second screen".`);
+    if (code === 0) {
+      const g = '\x1b[32m', r = '\x1b[0m';
+      const rows = ['', `READY  (deploy took ${sec} s)`, '', 'Say "Alexa, open second screen"', 'German Echo: "Alexa, öffne zweiten Bildschirm"', ''];
+      const w = Math.max(...rows.map((t) => t.length)) + 4;
+      console.log(`${g}  ┌${'─'.repeat(w)}┐${r}`);
+      for (const t of rows) console.log(`${g}  │  ${t.padEnd(w - 2)}│${r}`);
+      console.log(`${g}  └${'─'.repeat(w)}┘${r}\n`);
+    }
     else {
       console.error(`\n[skill] Deploy FAILED (code ${code}). Last output:`);
       console.error(out.trim().split(/\r?\n/).slice(-15).join('\n'));
@@ -581,9 +611,9 @@ function startTunnel() {
       PUBLIC_URL = m[0];
       console.log(`\n[tunnel] Public URL: ${PUBLIC_URL}`);
       updateSkillEndpoint(PUBLIC_URL);
+      console.log(`[tunnel] Test in a browser:  ${PUBLIC_URL}/?k=${KEY}`);
       if (args.includes('--no-deploy')) console.log('[tunnel] Now run in this folder:  ask deploy --ignore-hash   (the quick tunnel URL changes on every start)');
       else autoDeploy();
-      console.log(`[tunnel] Test in a browser:  ${PUBLIC_URL}/?k=${KEY}\n`);
     }
   };
   cf.stdout.on('data', onData);
@@ -738,10 +768,12 @@ server.on('upgrade', (req, socket) => {
 
 server.listen(PORT, '0.0.0.0', () => {
   console.log(`\nSource: ${SOURCE}${SOURCE === 'ddagrab' ? ' (monitor ' + DISPLAY + ')' : ''}, ${FPS} fps, ${TARGET ? 'output ' + TARGET : 'width ' + SCALE}`);
-  console.log('Open on the Echo Show in the Silk browser:');
-  for (const list of Object.values(os.networkInterfaces())) {
-    for (const ni of list || []) {
-      if (ni.family === 'IPv4' && !ni.internal) console.log(`   http://${ni.address}:${PORT}/`);
+  if (!TUNNEL && !PUBLIC_URL) {
+    console.log('Open on the Echo Show in the Silk browser:');
+    for (const list of Object.values(os.networkInterfaces())) {
+      for (const ni of list || []) {
+        if (ni.family === 'IPv4' && !ni.internal) console.log(`   http://${ni.address}:${PORT}/`);
+      }
     }
   }
   console.log('');
@@ -755,7 +787,7 @@ server.listen(PORT, '0.0.0.0', () => {
 let lastCount = 0;
 setInterval(() => {
   const fps = (frameCount - lastCount) / 5; lastCount = frameCount;
-  if (fps > 0 || clients.size) process.stdout.write(`\r[status] ${fps.toFixed(1)} fps, ${clients.size} Client(s)     `);
+  if (!deploying && (fps > 0 || clients.size)) process.stdout.write(`\r[status] ${fps.toFixed(1)} fps, ${clients.size} Client(s)     `);
 }, 5000).unref();
 
 process.on('SIGINT', () => { if (ff) ff.kill(); process.exit(0); });
