@@ -154,6 +154,7 @@ Windows only for now. macOS would need a different virtual display and capture p
 ## Limitations
 
 - **Latency and frame rate** are fine for chat, email, dashboards or music controls. Not for games or video.
+  The Echo isn't the bottleneck, it only shows JPEGs. Most of the lag is the network: Alexa skills need a public HTTPS URL, so every frame goes from your PC through the Cloudflare tunnel and back to the Echo. The [Silk version](silk-browser/README.md) stays in your LAN and skips that round trip.
 - The PC has to run the server while you use the screen.
 - Free Cloudflare quick tunnels get a new URL on every start, so the server re-deploys the skill each time (about a minute). A named tunnel with your own domain avoids that.
 - Alexa web apps end after at most 30 minutes without interaction. Whether the built-in keep-alive extends that is still being tested.
