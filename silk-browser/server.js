@@ -1,15 +1,16 @@
 // Silk browser version: a Windows monitor as an MJPEG stream for the Silk browser on the Echo Show.
 // No npm dependencies. Needs Node >= 18 and ffmpeg >= 6.
 //
-//   node server.js                      -> captures monitor 1 (second monitor) with ddagrab
-//   node server.js --display 0          -> another monitor (0 = usually the main one)
-//   node server.js --source test        -> test pattern instead of the screen (for trying things out)
-//   node server.js --source gdigrab --offset-x 1920 --width 1280 --height 800
-//                                       -> fallback without ddagrab
-//   node server.js --source gdigrab --monitor 2 --target 1280x800
-//                                       -> detect the monitor automatically (list at startup) and
-//                                          scale exactly to the Echo resolution (black bars if needed)
-//   More options: --port 8080 --fps 10 --quality 6 --scale 1280
+//   node server.js (or start.cmd) finds the virtual monitor automatically (first start only,
+//   saved in monitor.json) and streams it at its own resolution.
+//
+// Options (all optional):
+//   --redetect            search the virtual monitor again (e.g. after changing its resolution)
+//   --probe               list every GPU/monitor combination and exit
+//   --adapter N --display N --target WxH   pick the monitor by hand
+//   --source test         test pattern instead of the screen (checks network + Echo Show)
+//   --source gdigrab --monitor 2 --target 1280x800   fallback without ddagrab (not for virtual monitors)
+//   --port 8080 --fps 10 --quality 6 --scale 1280
 
 const http = require('http');
 const fs = require('fs');
@@ -28,7 +29,7 @@ const FPS = parseInt(opt('fps', '10'), 10);
 const QUALITY = parseInt(opt('quality', '6'), 10); // ffmpeg -q:v, 2 = best, 31 = worst
 const SCALE = opt('scale', '1280');                // target width in px, "0" = no scaling
 const SOURCE = opt('source', 'ddagrab');           // ddagrab | gdigrab | test
-const DISPLAY = opt('display', '1');
+let DISPLAY = opt('display', '');                  // empty = auto-detect the virtual monitor
 // Without --ffmpeg: on Windows prefer the Gyan ffmpeg installed via winget (recent, has ddagrab),
 // because an old ffmpeg may come first in PATH.
 function findFfmpeg() {
@@ -43,9 +44,9 @@ function findFfmpeg() {
   } catch (e) { return 'ffmpeg'; }
 }
 const FFMPEG = opt('ffmpeg', '') || findFfmpeg();
-const TARGET = opt('target', '');                  // e.g. 1280x800 = exact output size for the Echo Show
+let TARGET = opt('target', '');                    // e.g. 1280x800; empty = resolution of the detected monitor
 const MONITOR = opt('monitor', '');
-const ADAPTER = opt('adapter', '0');                // DXGI adapter (GPU) for ddagrab
+let ADAPTER = opt('adapter', '');                  // DXGI adapter (GPU) for ddagrab; empty = auto-detect
 
 // Read monitors via PowerShell. DPI-aware so the values are real pixels
 // (otherwise Windows reports scaled-down values at 125/150 % -> only a crop gets captured).
@@ -67,10 +68,15 @@ function listMonitors() {
   }
 }
 
-// --probe: try every combination of GPU (adapter) and monitor (display)
-if (args.includes('--probe')) {
+// ---------- Find the virtual monitor ----------
+// ddagrab only sees the monitors of ONE GPU (DXGI adapter). We try every adapter/output combination
+// and pick the one with an Echo Show resolution. The result is saved in CONFIG_FILE, so this runs only once.
+const CONFIG_FILE = path.join(__dirname, 'monitor.json');
+const ECHO_RESOLUTIONS = ['1280x800', '1340x800', '960x480', '1024x600', '1920x1200', '1920x1080'];
+
+function probeOutputs() {
   const { spawnSync } = require('child_process');
-  console.log(`Testing ddagrab with ${FFMPEG} ...\n`);
+  const found = [];
   for (let a = 0; a < 4; a++) {
     for (let d = 0; d < 4; d++) {
       const r = spawnSync(FFMPEG, ['-hide_banner', '-loglevel', 'verbose',
@@ -79,13 +85,63 @@ if (args.includes('--probe')) {
         '-frames:v', '1', '-f', 'null', '-'], { encoding: 'utf8', timeout: 15000 });
       const log = (r.stderr || '') + (r.stdout || '');
       const m = log.match(/Opened dxgi output \d+ with dimensions (\d+)x(\d+)/);
-      if (m) console.log(`  --adapter ${a} --display ${d}  ->  ${m[1]}x${m[2]}`);
+      if (m) found.push({ adapter: String(a), display: String(d), res: `${m[1]}x${m[2]}` });
     }
   }
-  console.log('\nPick the entry with the virtual monitor\'s resolution, e.g.:');
-  console.log('  .\\start.cmd --adapter 1 --display 0 --target 1280x800');
+  return found;
+}
+
+function pickOutput(found) {
+  // With --target, take exactly that resolution. Otherwise the first Echo resolution in ECHO_RESOLUTIONS order.
+  const wanted = TARGET ? [TARGET.toLowerCase()] : ECHO_RESOLUTIONS;
+  const hits = found.filter((o) => wanted.includes(o.res));
+  if (hits.length > 1) {
+    console.log('[monitor] several monitors with an Echo resolution:');
+    for (const o of hits) console.log(`   adapter ${o.adapter}, display ${o.display}: ${o.res}`);
+  }
+  for (const res of wanted) {
+    const hit = hits.find((o) => o.res === res);
+    if (hit) return hit;
+  }
+  return null;
+}
+
+if (args.includes('--probe')) {
+  console.log(`Testing ddagrab with ${FFMPEG} ...\n`);
+  const found = probeOutputs();
+  for (const o of found) console.log(`  --adapter ${o.adapter} --display ${o.display}  ->  ${o.res}`);
+  const pick = pickOutput(found);
+  console.log(pick ? `\nAuto-detect would pick: --adapter ${pick.adapter} --display ${pick.display} (${pick.res})`
+    : '\nNo monitor with an Echo Show resolution found. Set the virtual monitor to the Echo\'s resolution first.');
   process.exit(0);
 }
+
+if (SOURCE === 'ddagrab' && (!ADAPTER || !DISPLAY)) {
+  let saved = null;
+  if (!args.includes('--redetect')) {
+    try { saved = JSON.parse(fs.readFileSync(CONFIG_FILE, 'utf8')); } catch (e) { /* first start */ }
+  }
+  if (saved && (!TARGET || saved.res === TARGET.toLowerCase())) {
+    console.log(`[monitor] using saved monitor: adapter ${saved.adapter}, display ${saved.display}, ${saved.res}  (search again: --redetect)`);
+  } else {
+    console.log('[monitor] looking for the virtual monitor (only on the first start, takes a few seconds) ...');
+    const found = probeOutputs();
+    saved = pickOutput(found);
+    if (!saved) {
+      console.error('[monitor] No monitor with an Echo Show resolution (' + ECHO_RESOLUTIONS.join(', ') + ') found.');
+      for (const o of found) console.error(`   adapter ${o.adapter}, display ${o.display}: ${o.res}`);
+      console.error('[monitor] Set the virtual monitor to your Echo\'s resolution, or pass --adapter N --display N --target WxH.');
+      process.exit(1);
+    }
+    fs.writeFileSync(CONFIG_FILE, JSON.stringify(saved, null, 2));
+    console.log(`[monitor] found: adapter ${saved.adapter}, display ${saved.display}, ${saved.res}  (saved in monitor.json)`);
+  }
+  ADAPTER = ADAPTER || saved.adapter;
+  DISPLAY = DISPLAY || saved.display;
+  TARGET = TARGET || saved.res;
+}
+if (!ADAPTER) ADAPTER = '0';
+if (!DISPLAY) DISPLAY = '1';
 
 let region = null; // {x,y,w,h} for gdigrab
 if (SOURCE === 'gdigrab' && args.indexOf('--offset-x') < 0) {

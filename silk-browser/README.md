@@ -28,16 +28,15 @@ Windows: virtual monitor ──ddagrab──► ffmpeg (MJPEG) ──► server.
 ## Start
 
 ```
-.\start.cmd --source test                              # 1. test pattern: checks network + Echo Show, no screen capture
-node server.js --probe                                 # 2. find the virtual monitor (GPU adapter + display index)
-.\start.cmd --adapter 1 --display 0 --target 1280x800  # 3. the real thing, with the values from --probe
+.\start.cmd --source test   # 1. test pattern: checks network + Echo Show, no screen capture
+.\start.cmd                 # 2. the real thing
 ```
 
 In PowerShell always prefix with `.\` (or call `node server.js …` directly).
 The server prints the URL, e.g. `http://192.168.1.50:8080/`.
 Windows asks about the firewall on first start. Allow **private networks**.
 
-**Why `--adapter`?** `ddagrab` only sees the monitors of one GPU. On laptops with Intel + Nvidia, and with the virtual display driver, the virtual monitor often sits on adapter 1. `--probe` lists every combination with its resolution, so pick the one that matches your virtual monitor.
+On the first start the server finds the virtual monitor by its Echo resolution and saves it in `monitor.json`. `ddagrab` only sees the monitors of one GPU, so it tries every GPU/monitor combination (`--probe` lists them). After changing the resolution, start once with `--redetect`. To pick by hand: `--adapter N --display N --target WxH`.
 
 ## On the Echo Show
 
@@ -51,7 +50,7 @@ If the stream stutters or stalls: `http://…:8080/?mode=poll&fps=8`. The page t
 
 | Option | Default | Effect |
 |---|---|---|
-| `--target 1280x800` | – | exact output size; keeps the aspect ratio, pads with black |
+| `--target 1280x800` | detected | exact output size; keeps the aspect ratio, pads with black |
 | `--fps 15` | 10 | more frames per second, more CPU and Wi-Fi load |
 | `--quality 4` | 6 | ffmpeg `-q:v`, lower = sharper and bigger (2 to 31) |
 | `--scale 960` | 1280 | target width when `--target` is not set, `0` = original size |

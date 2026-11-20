@@ -23,7 +23,7 @@ Touch, tunnel (http2) and the skill deploy are on by default. The virtual monito
 Wait for `[skill] Deploy done`, then talk to Alexa.
 On the LAN via Silk, without the skill, this works too: `.\start.cmd --no-tunnel`
 
-At startup the console lists all monitors and prints `[touch] controlling monitor N: … 1280x800 at X,Y`. That has to be the virtual monitor. It is detected via the `--target` resolution; otherwise pick it with `--input-monitor N`.
+At startup the console lists all monitors and prints `[touch] controlling monitor N: … 1280x800 at X,Y`. That has to be the virtual monitor. It is detected via the Echo resolution; otherwise pick it with `--input-monitor N`.
 
 ## Debugging touch
 
