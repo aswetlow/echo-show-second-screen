@@ -7,7 +7,7 @@
 //     - starts a Cloudflare quick tunnel (http2), writes its URL into the skill package and runs
 //       "ask deploy --ignore-hash"
 //     - touch on: tap/drag/long-press on the Echo controls the Windows mouse, two fingers = scroll,
-//       keyboard button = Windows on-screen keyboard on the virtual monitor
+//       keyboard button = on-screen keyboard on the Echo, typing into the focused Windows window
 //     - only sends frames when the screen changes (idle desktop = almost no traffic)
 //
 // Options (all optional):
@@ -234,51 +234,32 @@ public static class Inp {
   [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr c);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, int d, UIntPtr e);
-  [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr FindWindow(string c, string t);
-  [DllImport("user32.dll", SetLastError = true)] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
-  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
-  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
-  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
+  // Keyboard: SendInput into the focused window. Characters as Unicode (independent of the
+  // keyboard layout), special keys as virtual key codes.
+  [StructLayout(LayoutKind.Sequential)] public struct MOUSEINPUT { public int dx; public int dy; public uint mouseData; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
+  [StructLayout(LayoutKind.Sequential)] public struct KEYBDINPUT { public ushort wVk; public ushort wScan; public uint dwFlags; public uint time; public IntPtr dwExtraInfo; }
+  [StructLayout(LayoutKind.Explicit)] public struct INPUTUNION { [FieldOffset(0)] public MOUSEINPUT mi; [FieldOffset(0)] public KEYBDINPUT ki; }
+  [StructLayout(LayoutKind.Sequential)] public struct INPUT { public uint type; public INPUTUNION u; }
+  [DllImport("user32.dll", SetLastError = true)] public static extern uint SendInput(uint n, INPUT[] i, int size);
+  static void Key(ushort vk, ushort scan, uint flags) {
+    INPUT[] a = new INPUT[2];
+    a[0].type = 1; a[0].u.ki.wVk = vk; a[0].u.ki.wScan = scan; a[0].u.ki.dwFlags = flags;
+    a[1] = a[0]; a[1].u.ki.dwFlags = flags | 2; // 2 = KEYEVENTF_KEYUP
+    SendInput(2, a, Marshal.SizeOf(typeof(INPUT)));
+  }
+  public static void Text(string s) { foreach (char c in s) Key(0, c, 4); } // 4 = KEYEVENTF_UNICODE
+  public static void Vk(ushort vk) {
+    bool ext = vk == 0x2E || (vk >= 0x21 && vk <= 0x28); // Delete, PgUp/PgDn/End/Home, arrows
+    Key(vk, 0, ext ? 1u : 0u);                           // 1 = KEYEVENTF_EXTENDEDKEY
+  }
 }
 '@
 # Per-monitor DPI (V2) so coordinates are right even with different scaling per monitor
 if (-not [Inp]::SetProcessDpiAwarenessContext([IntPtr]::new(-4))) { [Inp]::SetProcessDPIAware() | Out-Null }
 while (($l = [Console]::In.ReadLine()) -ne $null) {
   $p = $l.Split(' ')
-  if ($p[0] -eq 'K' -and $p.Length -ge 5) {
-    # Toggle the Windows on-screen keyboard (osk.exe). It remembers its position in the
-    # registry, so we write the virtual monitor's bottom area there before starting it.
-    $o = Get-Process osk -ErrorAction SilentlyContinue
-    if ($o) {
-      try { $o | Stop-Process -Force -ErrorAction Stop } catch { Write-Host "[keyboard] could not close osk.exe: $_" }
-      continue
-    }
-    $k = 'HKCU:\\Software\\Microsoft\\Osk'
-    if (-not (Test-Path $k)) { New-Item $k -Force | Out-Null }
-    Set-ItemProperty $k WindowLeft ([int]$p[1]) -Type DWord
-    Set-ItemProperty $k WindowTop ([int]$p[2]) -Type DWord
-    Set-ItemProperty $k WindowWidth ([int]$p[3]) -Type DWord
-    Set-ItemProperty $k WindowHeight ([int]$p[4]) -Type DWord
-    try { Start-Process osk.exe -ErrorAction Stop } catch { Write-Host "[keyboard] could not start osk.exe: $_"; continue }
-    # osk.exe doesn't always respect the registry position (e.g. on another monitor), so move
-    # its window once it exists. 0x0040 = SWP_SHOWWINDOW, -1 = HWND_TOPMOST.
-    # Find the window through the process (works whatever the window class is called), up to 10 s.
-    $h = [IntPtr]::Zero
-    for ($i = 0; $i -lt 100 -and $h -eq [IntPtr]::Zero; $i++) {
-      Start-Sleep -Milliseconds 100
-      $o = Get-Process osk -ErrorAction SilentlyContinue | Select-Object -First 1
-      if ($o -and $o.MainWindowHandle -ne [IntPtr]::Zero) { $h = $o.MainWindowHandle }
-      else { $h = [Inp]::FindWindow('OSKMainClass', $null) }
-    }
-    if ($h -eq [IntPtr]::Zero) { Write-Host "[keyboard] osk window not found (osk process running: $([bool](Get-Process osk -ErrorAction SilentlyContinue)))"; continue }
-    $cls = New-Object System.Text.StringBuilder 256; [Inp]::GetClassName($h, $cls, 256) | Out-Null
-    Start-Sleep -Milliseconds 300
-    $ok = [Inp]::SetWindowPos($h, [IntPtr]::new(-1), [int]$p[1], [int]$p[2], [int]$p[3], [int]$p[4], 0x0040)
-    $err = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
-    $r = New-Object Inp+RECT; [Inp]::GetWindowRect($h, [ref]$r) | Out-Null
-    Write-Host "\`n[keyboard] window $cls, wanted $($p[1]),$($p[2]) $($p[3])x$($p[4]), move ok=$ok err=$err, now at $($r.L),$($r.T) $($r.R - $r.L)x$($r.B - $r.T)"
-    continue
-  }
+  if ($p[0] -eq 'T' -and $p.Length -ge 2) { [Inp]::Text([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String($p[1]))); continue }
+  if ($p[0] -eq 'V' -and $p.Length -ge 2) { [Inp]::Vk([uint16]$p[1]); continue }
   if ($p.Length -lt 3) { continue }
   [Inp]::SetCursorPos([int]$p[1], [int]$p[2]) | Out-Null
   switch ($p[0]) {
@@ -311,15 +292,16 @@ function frameToScreen(fx, fy) {
   return [Math.floor(m.x + sx * m.w), Math.floor(m.y + sy * m.h)];
 }
 
+// Special keys the Echo keyboard may send: Backspace, Tab, Enter, Esc, PgUp, PgDn, End, Home, arrows, Delete
+const KEYS = [0x08, 0x09, 0x0D, 0x1B, 0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28, 0x2E];
 function handleInput(ev) {
   if (!inputProc || !inputMon) { if (!handleInput.warned) { handleInput.warned = true; console.error('[touch] gesture received, but the mouse helper is not running (see messages above)'); } return; }
-  if (ev.t === 'key') {
-    // On-screen keyboard across the bottom 40 % of the controlled monitor
-    const m = inputMon, h = Math.round(m.h * 0.4);
-    console.log('\n[keyboard] toggling the on-screen keyboard');
-    inputProc.stdin.write(`K ${m.x} ${m.y + m.h - h} ${m.w} ${h}\n`);
+  // Keyboard on the Echo: text goes to the window that has the focus on Windows.
+  if (ev.t === 'text' && typeof ev.s === 'string' && ev.s.length && ev.s.length <= 200) {
+    inputProc.stdin.write(`T ${Buffer.from(ev.s, 'utf8').toString('base64')}\n`);
     return;
   }
+  if (ev.t === 'vk' && KEYS.includes(ev.k)) { inputProc.stdin.write(`V ${ev.k}\n`); return; }
   const cmd = { down: 'D', move: 'M', up: 'U', right: 'R', wheel: 'W' }[ev.t];
   if (!cmd || typeof ev.x !== 'number' || typeof ev.y !== 'number') return;
   const [x, y] = frameToScreen(ev.x, ev.y);

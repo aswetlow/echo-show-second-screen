@@ -15,13 +15,28 @@
          border: 0; border-radius: 10px; background: rgba(40,40,40,.55); color: #fff;
          font: 24px sans-serif; line-height: 40px; padding: 0; touch-action: manipulation; }
   #kbd:active { background: rgba(90,90,90,.8); }
+  /* On-screen keyboard (drawn on the Echo, types into the focused window on Windows) */
+  #kb { position: fixed; left: 0; right: 0; bottom: 0; height: 42vh; display: none; flex-direction: column;
+        gap: 6px; padding: 8px; box-sizing: border-box; background: rgba(20,20,22,.92);
+        touch-action: none; user-select: none; -webkit-user-select: none; }
+  #kb.open { display: flex; }
+  /* While the keyboard is open the desktop shrinks into the space above it, so nothing is hidden */
+  body.kb-open #screen { height: 58vh; }
+  #kb .row { flex: 1; display: flex; gap: 6px; }
+  #kb button { flex: 1; min-width: 0; border: 0; border-radius: 8px; background: #3a3a3f; color: #fff;
+               font: 26px sans-serif; padding: 0; touch-action: none; }
+  #kb button.mod { background: #2a2a2e; font-size: 20px; }
+  #kb button.on, #kb button.down { background: #6a6a72; }
+  #kb button.wide { flex: 5; }
+  #kb button.mid { flex: 1.5; }
 </style>
 </head>
 <body>
 <img id="screen" alt="">
 <div id="hint">Tap for fullscreen</div>
-<!-- Opens/closes the Windows on-screen keyboard on the virtual monitor (touch mode only) -->
+<!-- Opens/closes the on-screen keyboard (touch mode only) -->
 <button id="kbd" title="Keyboard" aria-label="Keyboard">&#9000;</button>
+<div id="kb"></div>
 <!-- Keep-awake: invisible, muted looping video. ?keepawake=0 turns it off. -->
 <video id="ka" src="/keepawake.mp4" muted loop playsinline autoplay
        style="position:fixed;right:0;bottom:0;width:2px;height:2px;opacity:0.01;pointer-events:none"></video>
@@ -128,6 +143,8 @@ var queue = [], sending = false;
 function send(t, p) {
   var ev = { t: t, x: p.x, y: p.y };
   if (p.d) ev.d = p.d;
+  if (p.s) ev.s = p.s;
+  if (p.k) ev.k = p.k;
   if (ws && ws.readyState === 1) { ws.send(JSON.stringify(ev)); return; }
   queue.push(ev);
   if (!sending) flush();
@@ -146,12 +163,94 @@ function flush() {
     .catch(function () {}).then(flush);
 }
 
-// Keyboard button -> server toggles the Windows on-screen keyboard (osk.exe)
+// ---------- On-screen keyboard ----------
+// Drawn here on the Echo. Characters go to Windows as Unicode text into whatever window has the
+// focus there, so tap a text field on the second screen first. Special keys are sent as key codes.
 var kbd = document.getElementById('kbd');
+var kb = document.getElementById('kb');
+var VK = { bksp: 8, tab: 9, enter: 13, esc: 27, left: 37, up: 38, right: 39, down: 40, del: 46 };
+var LAYOUTS = {
+  abc: [
+    'q w e r t y u i o p {bksp}',
+    'a s d f g h j k l {enter}',
+    '{shift} z x c v b n m , . {shift}',
+    '{123} {tab} {space} {left} {right} {hide}'
+  ],
+  '123': [
+    '1 2 3 4 5 6 7 8 9 0 {bksp}',
+    '@ # € & * ( ) - + {enter}',
+    'ä ö ü ß ? ! / : ; \' "',
+    '{abc} {esc} {space} {left} {right} {hide}'
+  ]
+};
+var LABELS = { bksp: '⌫', enter: '↵', shift: '⇧', tab: 'Tab', esc: 'Esc', space: '',
+  left: '←', right: '→', hide: '⌨↓', '123': '123', abc: 'abc' };
+var kbPage = 'abc', shift = false;
+
+function buildKb() {
+  kb.innerHTML = '';
+  LAYOUTS[kbPage].forEach(function (line) {
+    var row = document.createElement('div'); row.className = 'row';
+    line.split(' ').forEach(function (k) {
+      var b = document.createElement('button');
+      var m = /^\{(.+)\}$/.exec(k);
+      if (m) {
+        b.dataset.cmd = m[1];
+        b.textContent = LABELS[m[1]];
+        b.className = m[1] === 'space' ? 'wide' : 'mod' + (m[1] === 'bksp' || m[1] === 'enter' || m[1] === 'shift' ? ' mid' : '');
+        if (m[1] === 'shift' && shift) b.className += ' on';
+      } else {
+        b.dataset.ch = k;
+        b.textContent = shift ? k.toUpperCase() : k;
+      }
+      row.appendChild(b);
+    });
+    kb.appendChild(row);
+  });
+}
+function kbPress(b) {
+  var cmd = b.dataset.cmd;
+  if (b.dataset.ch) {
+    send('text', { s: shift ? b.dataset.ch.toUpperCase() : b.dataset.ch });
+    if (shift) { shift = false; buildKb(); }
+  } else if (cmd === 'space') send('text', { s: ' ' });
+  else if (cmd === 'shift') { shift = !shift; buildKb(); }
+  else if (cmd === '123' || cmd === 'abc') { kbPage = cmd; shift = false; buildKb(); }
+  else if (cmd === 'hide') showKb(false);
+  else if (VK[cmd]) send('vk', { k: VK[cmd] });
+}
+// pointerdown instead of click: faster, and several fingers can type in quick succession.
+// Backspace and arrows repeat while held.
+var repeatTimer = null;
+kb.addEventListener('pointerdown', function (ev) {
+  ev.preventDefault(); ev.stopPropagation();
+  var b = ev.target.closest('button'); if (!b) return;
+  b.classList.add('down');
+  kbPress(b);
+  var cmd = b.dataset.cmd;
+  if (cmd === 'bksp' || cmd === 'left' || cmd === 'right') {
+    clearInterval(repeatTimer);
+    repeatTimer = setTimeout(function () { repeatTimer = setInterval(function () { kbPress(b); }, 80); }, 450);
+  }
+});
+function kbUp() {
+  clearTimeout(repeatTimer); clearInterval(repeatTimer); repeatTimer = null;
+  var d = kb.querySelectorAll('.down'); for (var i = 0; i < d.length; i++) d[i].classList.remove('down');
+}
+kb.addEventListener('pointerup', kbUp);
+kb.addEventListener('pointercancel', kbUp);
+kb.addEventListener('pointerleave', kbUp);
+kb.addEventListener('click', function (ev) { ev.stopPropagation(); });
+kb.addEventListener('contextmenu', function (ev) { ev.preventDefault(); });
+buildKb();
 kbd.addEventListener('click', function (ev) {
   ev.stopPropagation();
-  send('key', {});
+  showKb(!kb.classList.contains('open'));
 });
+function showKb(on) {
+  kb.classList.toggle('open', on);
+  document.body.classList.toggle('kb-open', on);
+}
 
 // Position in the frame (0..1), minus the object-fit:contain bars
 function framePos(ev) {
