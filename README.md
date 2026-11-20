@@ -137,6 +137,8 @@ driver\vdd.cmd path D:\Your\Folder  # use another folder
 
 It asks for admin rights (UAC) and disables or enables the driver in Device Manager. Windows remembers the monitor's position and resolution.
 
+You don't have to turn it on by hand: `start.cmd` checks the driver at start and turns it on if it's off (one UAC prompt). Stopping the server leaves the monitor on. Skip the check with `--no-vdd`.
+
 ## Supported devices
 
 | Device | Resolution | Status |

@@ -5,6 +5,7 @@
 //   saved in monitor.json) and streams it at its own resolution.
 //
 // Options (all optional):
+//   --no-vdd              don't turn the virtual monitor on at start if it's off
 //   --redetect            search the virtual monitor again (e.g. after changing its resolution)
 //   --probe               list every GPU/monitor combination and exit
 //   --adapter N --display N --target WxH   pick the monitor by hand
@@ -68,6 +69,36 @@ function listMonitors() {
     return [];
   }
 }
+
+// ---------- Make sure the virtual monitor is on ----------
+// If the virtual display driver is disabled (e.g. with driver\vdd.cmd off), turn it on at start.
+// Enabling a device needs admin rights, so Windows shows a UAC prompt. Nothing happens on exit:
+// the monitor stays on. --no-vdd skips the check.
+const VDD_MATCH = "FriendlyName -match 'Virtual Display|IddSample|MttVDD'";
+function psRun(ps) {
+  return execFileSync('powershell.exe', ['-NoProfile', '-NonInteractive', '-EncodedCommand',
+    Buffer.from(ps, 'utf16le').toString('base64')], { encoding: 'utf8' }).trim();
+}
+function sleepMs(ms) { Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms); }
+function ensureVirtualMonitor() {
+  if (process.platform !== 'win32' || SOURCE === 'test' || args.includes('--no-vdd')) return;
+  const statusPs = `@(Get-PnpDevice -Class Display -ErrorAction SilentlyContinue | Where-Object { $_.${VDD_MATCH} } | ForEach-Object { $_.Status }) -join ','`;
+  let status;
+  try { status = psRun(statusPs); } catch (e) { console.error('[vdd] could not check the virtual display driver:', e.message); return; }
+  if (!status) { console.log('[vdd] no virtual display driver found (see README, "Installing the virtual display driver")'); return; }
+  if (status.split(',').includes('OK')) { console.log('[vdd] virtual monitor is on'); return; }
+  console.log('[vdd] virtual monitor is off, turning it on. Please confirm the Windows admin prompt ...');
+  const enablePs = `Get-PnpDevice -Class Display | Where-Object { $_.${VDD_MATCH} -and $_.Status -eq 'Error' } | Enable-PnpDevice -Confirm:$false`;
+  const elevatePs = `Start-Process powershell.exe -Verb RunAs -Wait -WindowStyle Hidden -ArgumentList '-NoProfile','-EncodedCommand','${Buffer.from(enablePs, 'utf16le').toString('base64')}'`;
+  try { psRun(elevatePs); } catch (e) { console.error('[vdd] not turned on (admin prompt declined?). Run driver\\vdd.cmd on'); return; }
+  // Windows needs a moment until the new monitor shows up for ddagrab
+  for (let i = 0; i < 10; i++) {
+    sleepMs(1000);
+    try { if (psRun(statusPs).split(',').includes('OK')) { sleepMs(2000); console.log('[vdd] virtual monitor is on'); return; } } catch (e) { /* retry */ }
+  }
+  console.error('[vdd] the virtual monitor did not come on. Check Device Manager or run driver\\vdd.cmd on');
+}
+ensureVirtualMonitor();
 
 // ---------- Find the virtual monitor ----------
 // ddagrab only sees the monitors of ONE GPU (DXGI adapter). We try every adapter/output combination
