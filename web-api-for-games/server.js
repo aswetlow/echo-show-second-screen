@@ -231,6 +231,10 @@ public static class Inp {
   [DllImport("user32.dll")] public static extern bool SetProcessDpiAwarenessContext(IntPtr c);
   [DllImport("user32.dll")] public static extern bool SetCursorPos(int x, int y);
   [DllImport("user32.dll")] public static extern void mouse_event(uint f, uint dx, uint dy, int d, UIntPtr e);
+  [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr FindWindow(string c, string t);
+  [DllImport("user32.dll", SetLastError = true)] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
+  [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 }
 '@
 # Per-monitor DPI (V2) so coordinates are right even with different scaling per monitor
@@ -251,7 +255,17 @@ while (($l = [Console]::In.ReadLine()) -ne $null) {
     Set-ItemProperty $k WindowTop ([int]$p[2]) -Type DWord
     Set-ItemProperty $k WindowWidth ([int]$p[3]) -Type DWord
     Set-ItemProperty $k WindowHeight ([int]$p[4]) -Type DWord
-    try { Start-Process osk.exe -ErrorAction Stop } catch { Write-Host "[keyboard] could not start osk.exe: $_" }
+    try { Start-Process osk.exe -ErrorAction Stop } catch { Write-Host "[keyboard] could not start osk.exe: $_"; continue }
+    # osk.exe doesn't always respect the registry position (e.g. on another monitor), so move
+    # its window once it exists. 0x0040 = SWP_SHOWWINDOW, -1 = HWND_TOPMOST.
+    $h = [IntPtr]::Zero
+    for ($i = 0; $i -lt 30 -and $h -eq [IntPtr]::Zero; $i++) { Start-Sleep -Milliseconds 100; $h = [Inp]::FindWindow('OSKMainClass', $null) }
+    if ($h -eq [IntPtr]::Zero) { Write-Host '[keyboard] osk window not found'; continue }
+    Start-Sleep -Milliseconds 300
+    $ok = [Inp]::SetWindowPos($h, [IntPtr]::new(-1), [int]$p[1], [int]$p[2], [int]$p[3], [int]$p[4], 0x0040)
+    $err = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+    $r = New-Object Inp+RECT; [Inp]::GetWindowRect($h, [ref]$r) | Out-Null
+    Write-Host "[keyboard] wanted $($p[1]),$($p[2]) $($p[3])x$($p[4]), move ok=$ok err=$err, now at $($r.L),$($r.T) $($r.R - $r.L)x$($r.B - $r.T)"
     continue
   }
   if ($p.Length -lt 3) { continue }
