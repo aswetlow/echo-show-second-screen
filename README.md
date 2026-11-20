@@ -13,7 +13,8 @@ https://github.com/user-attachments/assets/c93661e0-541c-4ed2-a0f9-a2f4e9cc082f
 - Windows gets a **virtual monitor** (an indirect display driver). You drag windows onto it like onto any other screen.
 - A tiny Node.js server captures that monitor with ffmpeg and streams it to the Echo Show.
 - You start it by voice through a custom Alexa skill in developer mode. **No Lambda:** your PC is the skill backend, reached through a Cloudflare tunnel.
-- **Touch:** tap = click, drag = drag, hold = right click, two fingers = scroll.
+- **Touch:** tap = click, drag = drag, hold = right click, two fingers = scroll. A keyboard button opens the Windows on-screen keyboard on the Echo.
+- **Only changed frames are sent.** An idle desktop costs almost no bandwidth.
 - A hidden, muted looping video keeps the Echo from going to sleep.
 - **Zero npm dependencies.** Node, ffmpeg, cloudflared and the ASK CLI are all you need.
 - No jailbreak, no sideloading, nothing modified on the Echo.
@@ -159,7 +160,7 @@ Windows only for now. macOS would need a different virtual display and capture p
 - Free Cloudflare quick tunnels get a new URL on every start, so the server re-deploys the skill each time (about a minute). A named tunnel with your own domain avoids that.
 - Alexa web apps end after at most 30 minutes without interaction. Whether the built-in keep-alive extends that is still being tested.
 - The skill start occasionally fails with "There was a problem with the requested skill's response". Saying it again usually works.
-- No keyboard and no pinch zoom from the Echo.
+- No pinch zoom. Typing works through the Windows on-screen keyboard, which is fine for short text only.
 - Windows running as administrator ignore the touch clicks unless the server also runs as administrator.
 
 ## Security

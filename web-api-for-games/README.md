@@ -8,6 +8,7 @@ The full version: a custom Alexa skill opens the second monitor on the Echo Show
 | Drag | Drag with the left button held (move windows, select text) |
 | Hold for 0.6 s | Right click |
 | Swipe with two fingers | Mouse wheel (scrolling) |
+| ⌨ button, bottom right | Opens or closes the Windows on-screen keyboard (`osk.exe`) across the bottom of the virtual monitor. Tap a text field first, then type |
 
 ```
 Echo: touch ──WebSocket /ws {t,x,y} (fallback: POST /input)──► server.js ──stdin──► PowerShell helper ──SetCursorPos/mouse_event──► Windows
@@ -36,7 +37,7 @@ At startup the console lists all monitors and prints `[touch] controlling monito
 
 - **Touch is remote control of your PC.** Through the tunnel it only works with the key `k`. Start with `--no-touch` if you only want the picture. Anyone with the URL plus key can move and click your mouse on the virtual monitor.
 - Windows running as administrator ignore the clicks (Windows UIPI protection) unless you start the server as administrator too.
-- No pinch zoom and no keyboard.
+- No pinch zoom. The keyboard is the Windows on-screen keyboard, fine for a search term or a short chat reply, not for writing. Hide the button with `?kbd=0`.
 - Latency: touch runs over one persistent WebSocket (no npm package), but the internet round trip through the tunnel remains. Biggest remaining lever: load picture and touch directly over LAN HTTPS with your own domain.
 - Different Windows scaling per monitor (e.g. laptop at 125 %) is handled: monitor list and mouse helper are per-monitor DPI aware.
 

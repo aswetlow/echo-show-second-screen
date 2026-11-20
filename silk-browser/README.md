@@ -55,6 +55,7 @@ If the stream stutters or stalls: `http://…:8080/?mode=poll&fps=8`. The page t
 | `--quality 4` | 6 | ffmpeg `-q:v`, lower = sharper and bigger (2 to 31) |
 | `--scale 960` | 1280 | target width when `--target` is not set, `0` = original size |
 | `--port 9000` | 8080 | |
+| `--all-frames` | off | send every frame. By default only frames where the screen changed are sent, so an idle desktop costs almost no Wi-Fi |
 | `--ffmpeg C:\tools\ffmpeg.exe` | auto | if ffmpeg is not found |
 | `--source gdigrab --monitor N` | – | fallback without `ddagrab` (does **not** work for the virtual monitor, see below) |
 

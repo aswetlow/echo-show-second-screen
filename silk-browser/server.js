@@ -10,6 +10,7 @@
 //   --adapter N --display N --target WxH   pick the monitor by hand
 //   --source test         test pattern instead of the screen (checks network + Echo Show)
 //   --source gdigrab --monitor 2 --target 1280x800   fallback without ddagrab (not for virtual monitors)
+//   --all-frames          send every frame (default: only frames where the screen changed)
 //   --port 8080 --fps 10 --quality 6 --scale 1280
 
 const http = require('http');
@@ -155,6 +156,13 @@ if (SOURCE === 'gdigrab' && args.indexOf('--offset-x') < 0) {
   region = { x: pick.x, y: pick.y, w: pick.w, h: pick.h };
 }
 
+// Only changed frames: mpdecimate drops frames that look like the previous one, and
+// -fps_mode vfr makes ffmpeg skip them instead of duplicating. An idle desktop then costs
+// almost no bandwidth. --all-frames turns it off (constant frame rate, old behavior).
+const ALL_FRAMES = args.includes('--all-frames');
+const DECIMATE = ALL_FRAMES ? '' : ',mpdecimate';
+const FPS_MODE = ALL_FRAMES ? [] : ['-fps_mode', 'vfr'];
+
 function ffmpegArgs() {
   let scale = SCALE !== '0' ? `,scale=${SCALE}:-2` : '';
   if (TARGET) {
@@ -170,8 +178,8 @@ function ffmpegArgs() {
     // and for virtual monitors the right one often sits on adapter 1 or 2 -> --adapter N.
     return ['-hide_banner', '-loglevel', 'warning',
       '-init_hw_device', `d3d11va=dda:${ADAPTER}`, '-filter_hw_device', 'dda',
-      '-filter_complex', `ddagrab=output_idx=${DISPLAY}:framerate=${FPS}:draw_mouse=1,hwdownload,format=bgra${scale}`,
-      '-pix_fmt', 'yuvj420p', '-c:v', 'mjpeg', '-q:v', String(QUALITY), '-f', 'mjpeg', 'pipe:1'];
+      '-filter_complex', `ddagrab=output_idx=${DISPLAY}:framerate=${FPS}:draw_mouse=1,hwdownload,format=bgra${scale}${DECIMATE}`,
+      ...FPS_MODE, '-pix_fmt', 'yuvj420p', '-c:v', 'mjpeg', '-q:v', String(QUALITY), '-f', 'mjpeg', 'pipe:1'];
   } else if (SOURCE === 'gdigrab') {
     input = ['-f', 'gdigrab', '-framerate', String(FPS), '-draw_mouse', '1',
       '-offset_x', String(region ? region.x : opt('offset-x', '1920')),
@@ -184,7 +192,7 @@ function ffmpegArgs() {
     vf = `null${scale}`;
   }
   return ['-hide_banner', '-loglevel', 'warning', ...input,
-    '-vf', vf, '-pix_fmt', 'yuvj420p', '-c:v', 'mjpeg', '-q:v', String(QUALITY),
+    '-vf', vf + DECIMATE, ...FPS_MODE, '-pix_fmt', 'yuvj420p', '-c:v', 'mjpeg', '-q:v', String(QUALITY),
     '-f', 'mjpeg', 'pipe:1'];
 }
 
@@ -223,17 +231,20 @@ function startCapture() {
   });
 }
 
-function onFrame(frame) {
+let lastSent = 0;
+function onFrame(frame, repeat) {
   latestFrame = frame;
-  frameCount++;
+  if (!repeat) frameCount++;
+  lastSent = Date.now();
   for (const res of clients) {
     // Slow clients skip frames instead of building up buffers (low latency).
     if (res.writableNeedDrain) continue;
-    res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`);
-    res.write(frame);
-    res.write('\r\n');
+    onFrameTo(res, frame);
   }
 }
+// With only changed frames, an idle screen sends nothing. Resend the last frame every
+// few seconds so proxies and tunnels don't close the idle connection.
+setInterval(() => { if (latestFrame && clients.size && Date.now() - lastSent > 4000) onFrame(latestFrame, true); }, 1000);
 
 // ---------- HTTP ----------
 const viewerHtml = fs.readFileSync(path.join(__dirname, 'viewer.html'));
@@ -255,6 +266,7 @@ const server = http.createServer((req, res) => {
     clients.add(res);
     const since = Date.now();
     console.log(`\n[${new Date().toLocaleTimeString()}] Stream client connected: ${req.socket.remoteAddress} (${clients.size} active)`);
+    res.write('--frame\r\n');
     if (latestFrame) onFrameTo(res, latestFrame);
     req.on('close', () => {
       clients.delete(res);
@@ -289,10 +301,13 @@ const server = http.createServer((req, res) => {
   res.writeHead(404); res.end('404');
 });
 
+// Every part ends with the next boundary. Browsers show a part only once its closing
+// boundary arrives, so without this the screen would lag one frame behind, and with
+// only changed frames the last change would stay invisible until the next one.
 function onFrameTo(res, frame) {
-  res.write(`--frame\r\nContent-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`);
+  res.write(`Content-Type: image/jpeg\r\nContent-Length: ${frame.length}\r\n\r\n`);
   res.write(frame);
-  res.write('\r\n');
+  res.write('\r\n--frame\r\n');
 }
 
 server.listen(PORT, '0.0.0.0', () => {
