@@ -237,6 +237,7 @@ public static class Inp {
   [DllImport("user32.dll", SetLastError = true)] public static extern IntPtr FindWindow(string c, string t);
   [DllImport("user32.dll", SetLastError = true)] public static extern bool SetWindowPos(IntPtr h, IntPtr a, int x, int y, int w, int hh, uint f);
   [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr h, out RECT r);
+  [DllImport("user32.dll", CharSet = CharSet.Unicode)] public static extern int GetClassName(IntPtr h, System.Text.StringBuilder s, int n);
   [StructLayout(LayoutKind.Sequential)] public struct RECT { public int L, T, R, B; }
 }
 '@
@@ -261,14 +262,21 @@ while (($l = [Console]::In.ReadLine()) -ne $null) {
     try { Start-Process osk.exe -ErrorAction Stop } catch { Write-Host "[keyboard] could not start osk.exe: $_"; continue }
     # osk.exe doesn't always respect the registry position (e.g. on another monitor), so move
     # its window once it exists. 0x0040 = SWP_SHOWWINDOW, -1 = HWND_TOPMOST.
+    # Find the window through the process (works whatever the window class is called), up to 10 s.
     $h = [IntPtr]::Zero
-    for ($i = 0; $i -lt 30 -and $h -eq [IntPtr]::Zero; $i++) { Start-Sleep -Milliseconds 100; $h = [Inp]::FindWindow('OSKMainClass', $null) }
-    if ($h -eq [IntPtr]::Zero) { Write-Host '[keyboard] osk window not found'; continue }
+    for ($i = 0; $i -lt 100 -and $h -eq [IntPtr]::Zero; $i++) {
+      Start-Sleep -Milliseconds 100
+      $o = Get-Process osk -ErrorAction SilentlyContinue | Select-Object -First 1
+      if ($o -and $o.MainWindowHandle -ne [IntPtr]::Zero) { $h = $o.MainWindowHandle }
+      else { $h = [Inp]::FindWindow('OSKMainClass', $null) }
+    }
+    if ($h -eq [IntPtr]::Zero) { Write-Host "[keyboard] osk window not found (osk process running: $([bool](Get-Process osk -ErrorAction SilentlyContinue)))"; continue }
+    $cls = New-Object System.Text.StringBuilder 256; [Inp]::GetClassName($h, $cls, 256) | Out-Null
     Start-Sleep -Milliseconds 300
     $ok = [Inp]::SetWindowPos($h, [IntPtr]::new(-1), [int]$p[1], [int]$p[2], [int]$p[3], [int]$p[4], 0x0040)
     $err = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
     $r = New-Object Inp+RECT; [Inp]::GetWindowRect($h, [ref]$r) | Out-Null
-    Write-Host "[keyboard] wanted $($p[1]),$($p[2]) $($p[3])x$($p[4]), move ok=$ok err=$err, now at $($r.L),$($r.T) $($r.R - $r.L)x$($r.B - $r.T)"
+    Write-Host "\`n[keyboard] window $cls, wanted $($p[1]),$($p[2]) $($p[3])x$($p[4]), move ok=$ok err=$err, now at $($r.L),$($r.T) $($r.R - $r.L)x$($r.B - $r.T)"
     continue
   }
   if ($p.Length -lt 3) { continue }
