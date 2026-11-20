@@ -586,7 +586,14 @@ const server = http.createServer((req, res) => {
     req.on('data', (c) => { raw += c; if (raw.length > 1e6) req.destroy(); });
     req.on('end', () => {
       let out;
-      try { out = handleAlexa(JSON.parse(raw), req.headers['x-forwarded-host'] || req.headers.host); }
+      try {
+        const body = JSON.parse(raw);
+        const r = body.request || {};
+        // Log every request: if a failed start shows no line here, Alexa never reached this PC
+        // (deploy not finished yet, or an old tunnel URL).
+        console.log(`\n[${new Date().toLocaleTimeString()}] [skill] ${r.type || '?'}${r.intent ? ' ' + r.intent.name : ''}${r.reason ? ' (' + r.reason + ')' : ''}${r.error ? ' error: ' + JSON.stringify(r.error) : ''}`);
+        out = handleAlexa(body, req.headers['x-forwarded-host'] || req.headers.host);
+      }
       catch (e) { console.error('[skill] error:', e.message); out = alexaResponse({ outputSpeech: say('en', 'error'), shouldEndSession: true }); }
       res.writeHead(200, { 'Content-Type': 'application/json;charset=UTF-8' });
       res.end(JSON.stringify(out));
