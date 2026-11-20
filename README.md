@@ -71,9 +71,14 @@ It asks for admin rights (UAC) and disables or enables the driver in Device Mana
 
 | Device | Resolution | Status |
 |---|---|---|
-| Echo Show 8 / 10 | 1280 × 800 | tested (1280×800 model) |
-| Echo Show 5 | 960 × 480 | untested |
+| Echo Show 8 (gen 1–3), Echo Show 10, Echo Show 2nd gen | 1280 × 800 | tested (1280×800 model) |
+| Echo Show 8 (4th gen, 2025) | 1340 × 800 | untested |
+| Echo Show 11 (2025) | 1920 × 1200 | untested |
 | Echo Show 15 / 21 | 1920 × 1080 | untested |
+| Echo Show 1st gen (2017) | 1024 × 600 | untested |
+| Echo Show 5 (all gens) | 960 × 480 | untested |
+
+All of these resolutions are already in [`driver/vdd_settings.xml`](driver/vdd_settings.xml). Start the server with the matching `--target`, e.g. `--target 1920x1200`.
 
 Windows only for now. macOS would need a different virtual display and capture path.
 

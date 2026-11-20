@@ -13,16 +13,19 @@ Windows: virtual monitor ──ddagrab──► ffmpeg (MJPEG) ──► server.
    If an older ffmpeg comes first in your PATH, `server.js` automatically picks the winget build.
 2. **Virtual monitor** (the winget package did not install a driver for us, so install it manually)
    - Unzip `VirtualDisplayDriver-x64.zip` from https://github.com/VirtualDrivers/Virtual-Display-Driver/releases to `C:\VirtualDisplayDriver\`
-   - Replace `vdd_settings.xml` there with `..\driver\vdd_settings.xml` (adds 960×480, 1280×800, 1024×600)
+   - Replace `vdd_settings.xml` there with `..\driver\vdd_settings.xml` (adds the resolutions of all Echo Show models)
    - Run `installCert.bat` **as administrator** (without it the install fails with "An error occurred")
    - `devmgmt.msc` → Action → Add legacy hardware → install manually → Display adapters → Have Disk → `MttVDD.inf`
    - Then in Display settings: set the new monitor to "Extend" and to the Echo's resolution:
 
    | Device | Display |
    |---|---|
-   | Echo Show 5 | 960 × 480 |
-   | Echo Show 8 / 10 | 1280 × 800 |
+   | Echo Show 5 (all gens) | 960 × 480 |
+   | Echo Show 1st gen | 1024 × 600 |
+   | Echo Show 8 (gen 1–3) / 10 / 2nd gen | 1280 × 800 |
+   | Echo Show 8 (4th gen, 2025) | 1340 × 800 |
    | Echo Show 15 / 21 | 1920 × 1080 |
+   | Echo Show 11 (2025) | 1920 × 1200 |
 
    The driver reads its settings from `C:\VirtualDisplayDriver\vdd_settings.xml` (create the folder if it does not exist). If a new resolution does not show up after a change, restart Windows.
 3. **Node.js 18 or newer.** No other packages needed.
