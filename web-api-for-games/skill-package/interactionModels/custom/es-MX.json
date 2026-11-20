@@ -1,0 +1,41 @@
+{
+  "interactionModel": {
+    "languageModel": {
+      "invocationName": "segunda pantalla",
+      "intents": [
+        {
+          "name": "ShowScreenIntent",
+          "slots": [],
+          "samples": [
+            "muestra la pantalla",
+            "enciende la pantalla",
+            "muestra el escritorio",
+            "muestra windows",
+            "inicia la pantalla"
+          ]
+        },
+        {
+          "name": "AMAZON.StopIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.CancelIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.HelpIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.NavigateHomeIntent",
+          "samples": []
+        },
+        {
+          "name": "AMAZON.FallbackIntent",
+          "samples": []
+        }
+      ],
+      "types": []
+    }
+  }
+}

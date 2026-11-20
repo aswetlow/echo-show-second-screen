@@ -28,6 +28,105 @@
             "Alexa, open second screen"
           ],
           "keywords": []
+        },
+        "en-CA": {
+          "name": "Second Screen",
+          "summary": "Shows an extended Windows monitor on the Echo Show.",
+          "description": "Fun project: the Echo Show becomes a second monitor for Windows. Meant for development mode only.",
+          "examplePhrases": [
+            "Alexa, open second screen"
+          ],
+          "keywords": []
+        },
+        "en-AU": {
+          "name": "Second Screen",
+          "summary": "Shows an extended Windows monitor on the Echo Show.",
+          "description": "Fun project: the Echo Show becomes a second monitor for Windows. Meant for development mode only.",
+          "examplePhrases": [
+            "Alexa, open second screen"
+          ],
+          "keywords": []
+        },
+        "en-IN": {
+          "name": "Second Screen",
+          "summary": "Shows an extended Windows monitor on the Echo Show.",
+          "description": "Fun project: the Echo Show becomes a second monitor for Windows. Meant for development mode only.",
+          "examplePhrases": [
+            "Alexa, open second screen"
+          ],
+          "keywords": []
+        },
+        "fr-FR": {
+          "name": "Deuxième Écran",
+          "summary": "Affiche un écran Windows étendu sur l'Echo Show.",
+          "description": "Projet pour le fun : l'Echo Show devient un deuxième écran pour Windows. Prévu uniquement pour le mode développement.",
+          "examplePhrases": [
+            "Alexa, ouvre deuxième écran"
+          ],
+          "keywords": []
+        },
+        "fr-CA": {
+          "name": "Deuxième Écran",
+          "summary": "Affiche un écran Windows étendu sur l'Echo Show.",
+          "description": "Projet pour le fun : l'Echo Show devient un deuxième écran pour Windows. Prévu uniquement pour le mode développement.",
+          "examplePhrases": [
+            "Alexa, ouvre deuxième écran"
+          ],
+          "keywords": []
+        },
+        "es-ES": {
+          "name": "Segunda Pantalla",
+          "summary": "Muestra un monitor extendido de Windows en el Echo Show.",
+          "description": "Proyecto por diversión: el Echo Show se convierte en un segundo monitor para Windows. Solo para el modo de desarrollo.",
+          "examplePhrases": [
+            "Alexa, abre segunda pantalla"
+          ],
+          "keywords": []
+        },
+        "es-MX": {
+          "name": "Segunda Pantalla",
+          "summary": "Muestra un monitor extendido de Windows en el Echo Show.",
+          "description": "Proyecto por diversión: el Echo Show se convierte en un segundo monitor para Windows. Solo para el modo de desarrollo.",
+          "examplePhrases": [
+            "Alexa, abre segunda pantalla"
+          ],
+          "keywords": []
+        },
+        "es-US": {
+          "name": "Segunda Pantalla",
+          "summary": "Muestra un monitor extendido de Windows en el Echo Show.",
+          "description": "Proyecto por diversión: el Echo Show se convierte en un segundo monitor para Windows. Solo para el modo de desarrollo.",
+          "examplePhrases": [
+            "Alexa, abre segunda pantalla"
+          ],
+          "keywords": []
+        },
+        "it-IT": {
+          "name": "Secondo Schermo",
+          "summary": "Mostra un monitor Windows esteso sull'Echo Show.",
+          "description": "Progetto per divertimento: l'Echo Show diventa un secondo monitor per Windows. Solo per la modalità sviluppo.",
+          "examplePhrases": [
+            "Alexa, apri secondo schermo"
+          ],
+          "keywords": []
+        },
+        "pt-BR": {
+          "name": "Segunda Tela",
+          "summary": "Mostra um monitor estendido do Windows no Echo Show.",
+          "description": "Projeto por diversão: o Echo Show vira um segundo monitor para o Windows. Apenas para o modo de desenvolvimento.",
+          "examplePhrases": [
+            "Alexa, abra segunda tela"
+          ],
+          "keywords": []
+        },
+        "nl-NL": {
+          "name": "Tweede Scherm",
+          "summary": "Toont een uitgebreid Windows-scherm op de Echo Show.",
+          "description": "Hobbyproject: de Echo Show wordt een tweede monitor voor Windows. Alleen bedoeld voor de ontwikkelmodus.",
+          "examplePhrases": [
+            "Alexa, open tweede scherm"
+          ],
+          "keywords": []
         }
       },
       "isAvailableWorldwide": true,

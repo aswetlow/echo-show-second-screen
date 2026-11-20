@@ -56,7 +56,17 @@ Echo Show opens https://…trycloudflare.com/?alexa=1&k=…  (Web API for Games,
    └── shows /stream.mjpg (your virtual monitor), keep-awake video, keep-alive pings to the skill
 ```
 
-The skill speaks English (en-US, en-GB) and German (de-DE); the reply language follows the Echo's language.
+The skill is a private developer skill (not in the Skill Store) and understands these languages; Alexa's spoken reply follows the Echo's language, everything else stays English:
+
+| Language | Locales | Say |
+|---|---|---|
+| English | en-US, en-GB, en-CA, en-AU, en-IN | "Alexa, open second screen" |
+| German | de-DE | "Alexa, öffne zweiten Bildschirm" |
+| French | fr-FR, fr-CA | "Alexa, ouvre deuxième écran" |
+| Spanish | es-ES, es-MX, es-US | "Alexa, abre segunda pantalla" |
+| Italian | it-IT | "Alexa, apri secondo schermo" |
+| Portuguese | pt-BR | "Alexa, abra segunda tela" |
+| Dutch | nl-NL | "Alexa, open tweede scherm" |
 
 ## Requirements
 
@@ -72,7 +82,7 @@ The skill speaks English (en-US, en-GB) and German (de-DE); the reply language f
 ```
 The server starts the tunnel, prints the public URL, writes it into `skill-package\skill.json` and then runs `ask deploy --ignore-hash` by itself. Wait for `[skill] Deploy done` (about a minute). The first deploy creates the skill, uploads the language models and enables it for testing in the development stage. No certification needed. Turn the automatic deploy off with `--no-deploy`.
 
-**Then:** "Alexa, open second screen" (English Echo) or "Alexa, öffne zweiten Bildschirm" (German Echo). End with "Alexa, stop".
+**Then:** "Alexa, open second screen" (or the phrase for your Echo's language, see the table above). End with "Alexa, stop".
 
 Test first: the console prints `Test in a browser: https://…trycloudflare.com/?k=…`. If that loads on your phone over mobile data, the tunnel works.
 

@@ -4,6 +4,8 @@
 
 https://github.com/user-attachments/assets/c93661e0-541c-4ed2-a0f9-a2f4e9cc082f
 
+> **Not a skill from the Alexa Skill Store.** It's a private developer skill: you deploy it to your own Amazon developer account, and it runs in development mode on your own Echo devices only (same Amazon account). No certification, no publishing, nothing to install from the store.
+
 > A weekend hack, not a product. Tested on my 1280×800 Echo Show and a Windows laptop. Wouldn't recommend it as a gaming display, even though it technically runs on Amazon's *Web API for Games*.
 
 ## What it does
@@ -50,7 +52,19 @@ Each folder is self-contained. Start with the Silk version, it proves the hard p
    .\start.cmd
    ```
    That's it. On the first start the server finds the virtual monitor by its Echo resolution and remembers it in `monitor.json`. It also starts the Cloudflare tunnel, deploys the skill and turns touch on. Options like `--no-touch` or `--no-tunnel` are listed at the top of [`server.js`](web-api-for-games/server.js).
-4. Wait for `[skill] Deploy done`, then say **"Alexa, open second screen"** (or on a German Echo: **"Alexa, öffne zweiten Bildschirm"**).
+4. Wait for `[skill] Deploy done`, then say **"Alexa, open second screen"**. The skill also understands other languages, depending on your Echo's language:
+
+   | Language | Locales | Say |
+   |---|---|---|
+   | English | en-US, en-GB, en-CA, en-AU, en-IN | "Alexa, open second screen" |
+   | German | de-DE | "Alexa, öffne zweiten Bildschirm" |
+   | French | fr-FR, fr-CA | "Alexa, ouvre deuxième écran" |
+   | Spanish | es-ES, es-MX, es-US | "Alexa, abre segunda pantalla" |
+   | Italian | it-IT | "Alexa, apri secondo schermo" |
+   | Portuguese | pt-BR | "Alexa, abra segunda tela" |
+   | Dutch | nl-NL | "Alexa, open tweede scherm" |
+
+   The app itself (console, web page) stays in English, only Alexa's spoken replies follow the Echo's language.
 
 ## Installing the virtual display driver
 

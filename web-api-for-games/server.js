@@ -355,8 +355,47 @@ const SPEECH = {
     noScreen: 'Dafür brauche ich ein Echo Gerät mit Bildschirm.',
     error: 'Da ist etwas schiefgegangen.',
   },
+  fr: {
+    on: 'Le deuxième écran est allumé.',
+    help: "J'affiche ton deuxième écran Windows. Dis stop pour arrêter.",
+    off: 'Deuxième écran éteint.',
+    noScreen: "Il faut un appareil Echo avec écran.",
+    error: "Une erreur s'est produite.",
+  },
+  es: {
+    on: 'La segunda pantalla está encendida.',
+    help: 'Muestro tu segunda pantalla de Windows. Di para para terminar.',
+    off: 'Segunda pantalla apagada.',
+    noScreen: 'Para esto necesito un dispositivo Echo con pantalla.',
+    error: 'Algo salió mal.',
+  },
+  it: {
+    on: 'Il secondo schermo è acceso.',
+    help: 'Mostro il tuo secondo schermo Windows. Di stop per terminare.',
+    off: 'Secondo schermo spento.',
+    noScreen: 'Serve un dispositivo Echo con schermo.',
+    error: 'Qualcosa è andato storto.',
+  },
+  pt: {
+    on: 'A segunda tela está ligada.',
+    help: 'Eu mostro sua segunda tela do Windows. Diga pare para encerrar.',
+    off: 'Segunda tela desligada.',
+    noScreen: 'Para isso preciso de um dispositivo Echo com tela.',
+    error: 'Algo deu errado.',
+  },
+  nl: {
+    on: 'Het tweede scherm staat aan.',
+    help: 'Ik toon je tweede Windows-scherm. Zeg stop om te eindigen.',
+    off: 'Tweede scherm uit.',
+    noScreen: 'Hiervoor heb ik een Echo-apparaat met scherm nodig.',
+    error: 'Er ging iets mis.',
+  },
 };
-function say(locale, key) { return speech(SPEECH[String(locale || '').startsWith('de') ? 'de' : 'en'][key]); }
+// Spoken replies follow the Echo's language (request.locale); everything else stays English.
+function say(locale, key) {
+  const lang = String(locale || '').slice(0, 2);
+  return speech((SPEECH[lang] || SPEECH.en)[key]);
+}
 
 function startDirective(host) {
   const base = PUBLIC_URL || `https://${host}`;
